@@ -205,7 +205,7 @@ export default function Layout({ children }: LayoutProps) {
             </div>
             <div className="ml-3 text-sm">
               <p className="font-medium text-white">{user?.name || "User"}</p>
-              <p className="truncate text-xs text-indigo-200">
+              <p className="truncate text-xs text-indigo-200 w-[90%]">
                 {user?.email || ""}
               </p>
             </div>
@@ -223,8 +223,8 @@ export default function Layout({ children }: LayoutProps) {
 
       <div className="flex flex-1 flex-col md:ml-64">
         {/* Top navigation */}
-        <nav className="bg-indigo-600 shadow-md">
-          <div className="mx-auto px-4 sm:px-6 lg:px-8">
+        <nav className="flex justify-between sm:justify-end sm:w-full bg-indigo-600 shadow-md">
+          <div className="left-0 sm:w-full sm:right-0 px-4 sm:px-6 lg:px-8">
             <div className="flex h-16 items-center justify-between">
               {/* Mobile menu button */}
               <button
