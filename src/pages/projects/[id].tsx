@@ -160,6 +160,26 @@ export default function ProjectDetail() {
     },
   });
 
+  // Handle delete project using tRPC
+  const deleteProjectMutation = api.project.delete.useMutation({
+    onSuccess: () => {
+      // Redirect to projects list after successful deletion
+      router.push('/projects');
+    },
+    onError: (error) => {
+      console.error('Error deleting project:', error);
+      alert(`Error deleting project: ${error.message || 'Unknown error'}`);
+    },
+  });
+
+  // Handle delete project
+  const handleDeleteProject = () => {
+    if (!confirm('Are you sure you want to delete this project? This action cannot be undone.')) return;
+    if (projectId && typeof projectId === 'string') {
+      deleteProjectMutation.mutate({ id: projectId });
+    }
+  };
+
   // Handle delete task
   const handleDeleteTask = (taskId: string) => {
     if (!confirm('Are you sure you want to delete this task?')) return;
@@ -356,17 +376,24 @@ export default function ProjectDetail() {
 
               {/* Tasks Section */}
               <div className="bg-white shadow rounded-lg p-6">
-                <div className="flex justify-between items-center mb-4">
-                  <h2 className="text-lg font-medium text-gray-900">Tasks</h2>
-                  <button
-                    onClick={() => setShowTaskForm(true)}
-                    className="inline-flex items-center px-3 py-1 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-indigo-600 hover:bg-indigo-700"
-                  >
-                    <svg className="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
-                    </svg>
-                    New Task
-                  </button>
+                <div className="flex justify-between items-center mb-6">
+                  <h1 className="text-3xl font-bold text-gray-900">{project?.name}</h1>
+                  <div className="flex space-x-4">
+                    <button
+                      onClick={() => setShowTaskForm(true)}
+                      className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-indigo-600 hover:bg-indigo-700"
+                    >
+                      New Task
+                    </button>
+                    {userRole === 'owner' && (
+                      <button
+                        onClick={handleDeleteProject}
+                        className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-red-600 hover:bg-red-700"
+                      >
+                        Delete Project
+                      </button>
+                    )}
+                  </div>
                 </div>
 
                 {tasks.length > 0 ? (

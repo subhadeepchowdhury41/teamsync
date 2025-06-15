@@ -3,7 +3,7 @@ import { TRPCError } from "@trpc/server";
 import { router, protectedProcedure } from "../trpc";
 
 // Member role validation schema
-const memberRoleSchema = z.enum(['owner', 'admin', 'member']);
+const memberRoleSchema = z.enum(["owner", "admin", "member"]);
 
 const projectSchema = z.object({
   id: z.string(),
@@ -17,7 +17,7 @@ const projectSchema = z.object({
 export const projectRouter = router({
   getAll: protectedProcedure.query(async ({ ctx }) => {
     const userId = ctx.session.user.id;
-    
+
     try {
       // Get projects where user is a member
       const projectMembers = await ctx.db.projectMember.findMany({
@@ -62,7 +62,7 @@ export const projectRouter = router({
             completedTaskCount,
             role: member.role,
           };
-        })
+        }),
       );
 
       return { projects };
@@ -263,11 +263,11 @@ export const projectRouter = router({
       z.object({
         name: z.string().min(1),
         description: z.string().optional(),
-      })
+      }),
     )
     .mutation(async ({ ctx, input }) => {
       const userId = ctx.session.user.id;
-      
+
       try {
         const project = await ctx.db.project.create({
           data: {
@@ -299,11 +299,11 @@ export const projectRouter = router({
         id: z.string(),
         name: z.string().min(1),
         description: z.string().optional(),
-      })
+      }),
     )
     .mutation(async ({ ctx, input }) => {
       const userId = ctx.session.user.id;
-      
+
       try {
         // Check if user has permission to update this project
         const userMembership = await ctx.db.projectMember.findFirst({
@@ -350,7 +350,7 @@ export const projectRouter = router({
     .input(z.object({ id: z.string() }))
     .mutation(async ({ ctx, input }) => {
       const userId = ctx.session.user.id;
-      
+
       try {
         // Check if user is the owner of this project
         const userMembership = await ctx.db.projectMember.findFirst({
@@ -387,7 +387,7 @@ export const projectRouter = router({
         });
       }
     }),
-    
+
   // Member management procedures
   addMember: protectedProcedure
     .input(
@@ -395,11 +395,11 @@ export const projectRouter = router({
         projectId: z.string(),
         email: z.string().email(),
         role: memberRoleSchema.default("member"),
-      })
+      }),
     )
     .mutation(async ({ ctx, input }) => {
       const userId = ctx.session.user.id;
-      
+
       try {
         // Check if user has permission to add members
         const userMembership = await ctx.db.projectMember.findFirst({
@@ -519,11 +519,11 @@ export const projectRouter = router({
         projectId: z.string(),
         userId: z.string(),
         role: memberRoleSchema,
-      })
+      }),
     )
     .mutation(async ({ ctx, input }) => {
       const currentUserId = ctx.session.user.id;
-      
+
       try {
         // Check if current user has permission to update roles
         const userMembership = await ctx.db.projectMember.findFirst({
@@ -567,7 +567,11 @@ export const projectRouter = router({
         }
 
         // Don't allow changing own role if owner
-        if (input.userId === currentUserId && userMembership.role === "owner" && input.role !== "owner") {
+        if (
+          input.userId === currentUserId &&
+          userMembership.role === "owner" &&
+          input.role !== "owner"
+        ) {
           throw new TRPCError({
             code: "FORBIDDEN",
             message: "You cannot change your own owner role",
@@ -623,11 +627,11 @@ export const projectRouter = router({
       z.object({
         projectId: z.string(),
         userId: z.string(),
-      })
+      }),
     )
     .mutation(async ({ ctx, input }) => {
       const currentUserId = ctx.session.user.id;
-      
+
       try {
         // Check if current user has permission to remove members
         const userMembership = await ctx.db.projectMember.findFirst({
@@ -641,7 +645,8 @@ export const projectRouter = router({
         if (!userMembership) {
           throw new TRPCError({
             code: "FORBIDDEN",
-            message: "You don't have permission to remove members from this project",
+            message:
+              "You don't have permission to remove members from this project",
           });
         }
 
@@ -661,7 +666,10 @@ export const projectRouter = router({
         }
 
         // Don't allow removing owner unless you are the owner
-        if (targetMembership.role === "owner" && userMembership.role !== "owner") {
+        if (
+          targetMembership.role === "owner" &&
+          userMembership.role !== "owner"
+        ) {
           throw new TRPCError({
             code: "FORBIDDEN",
             message: "Only owners can remove other owners",
@@ -669,7 +677,10 @@ export const projectRouter = router({
         }
 
         // Don't allow owners to remove themselves (they should transfer ownership first)
-        if (input.userId === currentUserId && targetMembership.role === "owner") {
+        if (
+          input.userId === currentUserId &&
+          targetMembership.role === "owner"
+        ) {
           throw new TRPCError({
             code: "FORBIDDEN",
             message: "Owners cannot remove themselves from the project",
