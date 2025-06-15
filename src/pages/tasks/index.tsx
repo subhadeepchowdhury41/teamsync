@@ -26,6 +26,11 @@ type Task = {
     id: string;
     name: string;
   } | null;
+  tags?: Array<{
+    id: string;
+    name: string;
+    color: string;
+  }>;
 };
 
 type Project = {
@@ -362,6 +367,7 @@ export default function Tasks() {
                       avatarUrl: task.assignee.avatar_url || undefined
                     } : null}
                     project={task.project}
+                    tags={task.tags || []}
                   />
                 ))}
               </div>

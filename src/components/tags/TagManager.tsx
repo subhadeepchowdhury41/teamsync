@@ -155,7 +155,7 @@ export default function TagManager({ projectId, onTagsChange }: TagManagerProps)
         <h2 className="text-xl font-semibold text-gray-800">Project Tags</h2>
         <button
           onClick={() => handleOpenModal()}
-          className="px-4 py-2 bg-indigo-600 text-white rounded-md hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+          className="px-4 py-2 bg-indigo-600 text-xs text-white rounded-md hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-indigo-500"
         >
           Add Tag
         </button>
@@ -176,18 +176,18 @@ export default function TagManager({ projectId, onTagsChange }: TagManagerProps)
           No tags found. Create your first tag to categorize tasks.
         </div>
       ) : (
-        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
+        <div className="grid grid-cols-1 w-full gap-4">
           {tags.map((tag) => (
             <div
               key={tag.id}
-              className="border rounded-lg p-4 flex justify-between items-center"
+              className="border rounded-lg p-2 flex justify-between items-center"
             >
               <div className="flex items-center">
                 <div
                   className="w-4 h-4 rounded-full mr-3"
                   style={{ backgroundColor: tag.color }}
                 ></div>
-                <span>{tag.name}</span>
+                <span className="text-xs">{tag.name}</span>
               </div>
               <div className="flex space-x-2">
                 <button

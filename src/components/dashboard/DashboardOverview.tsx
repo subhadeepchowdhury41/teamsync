@@ -209,6 +209,7 @@ export default function DashboardOverview() {
                   priority={task.priority}
                   dueDate={task.due_date}
                   assignee={task.assignee}
+                  tags={task.tags || []}
                 />
               ))}
             </div>
@@ -240,6 +241,7 @@ export default function DashboardOverview() {
                   priority={task.priority}
                   dueDate={task.due_date}
                   assignee={task.assignee}
+                  tags={task.tags || []}
                 />
               ))}
             </div>

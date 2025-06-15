@@ -32,6 +32,12 @@ type Task = {
     email: string;
     image?: string;
   };
+  // The API returns tags directly, not task_tags
+  tags?: Array<{
+    id: string;
+    name: string;
+    color: string;
+  }>;
 };
 
 type Project = {
@@ -312,6 +318,7 @@ export default function ProjectDetail() {
                           ...task.assignee,
                           avatarUrl: task.assignee.image // Map image to avatarUrl expected by TaskCard
                         } : undefined}
+                        tags={task.tags || []}
                       />
                     ))}
                   </div>

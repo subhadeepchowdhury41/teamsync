@@ -78,6 +78,17 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
             name: true,
           },
         },
+        task_tags: {
+          include: {
+            tag: {
+              select: {
+                id: true,
+                name: true,
+                color: true,
+              },
+            },
+          },
+        },
       },
       orderBy: {
         updated_at: 'desc',
@@ -116,6 +127,17 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
             name: true,
           },
         },
+        task_tags: {
+          include: {
+            tag: {
+              select: {
+                id: true,
+                name: true,
+                color: true,
+              },
+            },
+          },
+        },
       },
       orderBy: {
         due_date: 'asc',
@@ -140,10 +162,22 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       todo: allTasks.filter(task => task.status === 'todo').length,
     };
 
+    // Format tasks to include tags properly
+    const formatTasks = (tasks: any[]) => {
+      return tasks.map((task: any) => ({
+        ...task,
+        tags: task.task_tags?.map((tt: any) => ({
+          id: tt.tag.id,
+          name: tt.tag.name,
+          color: tt.tag.color
+        })) || []
+      }));
+    };
+
     return res.status(200).json({
       projects,
-      recentTasks,
-      upcomingTasks,
+      recentTasks: formatTasks(recentTasks),
+      upcomingTasks: formatTasks(upcomingTasks),
       taskCounts,
     });
   } catch (error) {
