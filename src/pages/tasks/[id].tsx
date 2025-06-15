@@ -1,11 +1,12 @@
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/router';
-import axios from 'axios';
 import { format } from 'date-fns';
 import { useSession } from 'next-auth/react';
 import Link from 'next/link';
 import Head from 'next/head';
 import Layout from '@/components/layout/Layout';
+import { api } from '@/utils/api';
+import { CommentList } from '@/components/comments/CommentList';
 
 // Simple loading spinner component
 const LoadingSpinner = () => (
@@ -16,34 +17,26 @@ export default function TaskDetails() {
   const router = useRouter();
   const { id } = router.query;
   const { data: session, status } = useSession();
-  const [task, setTask] = useState<any>(null);
-  const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
 
-  useEffect(() => {
-    if (status === 'unauthenticated') {
-      router.push('/auth/signin');
-    }
-  }, [status, router]);
+  // Redirect to signin if unauthenticated
+  if (status === 'unauthenticated') {
+    router.push('/auth/signin');
+    return null;
+  }
+
+  // Use tRPC query to fetch task details
+  const taskId = typeof id === 'string' ? id : '';
+  const { data: taskData, isLoading: loading, error: trpcError } = api.task.getById.useQuery(
+    { id: taskId },
+    { enabled: !!taskId && !!session }
+  );
 
   useEffect(() => {
-    if (id && session) {
-      fetchTaskDetails();
+    if (trpcError) {
+      setError(trpcError.message);
     }
-  }, [id, session]);
-
-  const fetchTaskDetails = async () => {
-    try {
-      setLoading(true);
-      const response = await axios.get(`/api/tasks/${id}`);
-      setTask(response.data);
-      setLoading(false);
-    } catch (error) {
-      console.error('Error fetching task details:', error);
-      setError('Failed to load task details');
-      setLoading(false);
-    }
-  };
+  }, [trpcError]);
 
   const formatDate = (dateString: string | null | undefined) => {
     if (!dateString) return 'No date set';
@@ -114,7 +107,7 @@ export default function TaskDetails() {
     );
   }
 
-  if (!task) {
+  if (!taskData?.task) {
     return (
       <Layout>
         <div className="flex justify-center items-center h-64">
@@ -123,6 +116,8 @@ export default function TaskDetails() {
       </Layout>
     );
   }
+  
+  const task = taskData.task;
 
   return (
     <Layout>
@@ -177,9 +172,9 @@ export default function TaskDetails() {
               <div>
                 <dt className="text-sm font-medium text-gray-500">Project</dt>
                 <dd className="mt-1 text-gray-900">
-                  {task.project_name ? (
+                  {task.project ? (
                     <Link href={`/projects/${task.project_id}`} className="text-blue-500 hover:underline">
-                      {task.project_name}
+                      {task.project.name}
                     </Link>
                   ) : 'Not assigned to a project'}
                 </dd>
@@ -255,6 +250,13 @@ export default function TaskDetails() {
                 </div>
               )}
             </dl>
+          </div>
+          
+          {/* Add comments section */}
+          <div className="bg-white shadow sm:rounded-lg mt-6">
+            <div className="px-4 py-5 sm:p-6">
+              <CommentList taskId={task.id} />
+            </div>
           </div>
         </div>
       </div>

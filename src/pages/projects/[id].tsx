@@ -2,18 +2,19 @@ import React, { useState, useEffect } from 'react';
 import Head from 'next/head';
 import { useRouter } from 'next/router';
 import { useSession } from 'next-auth/react';
-import axios from 'axios';
 import Layout from '@/components/layout/Layout';
 import TaskCard from '@/components/tasks/TaskCard';
 import TaskForm from '@/components/tasks/TaskForm';
 import TagManager from '@/components/tags/TagManager';
+import { api } from '@/utils/api';
 
 type ProjectMember = {
   id: string;
-  name: string;
-  email: string;
+  name: string | null;
+  email: string | null;
   role: string;
-  image?: string;
+  image?: string | null;
+  avatar_url?: string | null;
 };
 
 type TaskStatus = 'todo' | 'in_progress' | 'review' | 'completed';
@@ -22,34 +23,41 @@ type TaskPriority = 'low' | 'medium' | 'high' | 'urgent';
 type Task = {
   id: string;
   title: string;
-  description?: string;
+  description?: string | null;
   status: string; // Keep as string from API
   priority: string; // Keep as string from API
-  due_date?: string;
+  due_date?: string | null;
   assignee?: {
     id: string;
-    name: string;
-    email: string;
-    image?: string;
-  };
+    name: string | null;
+    email: string | null;
+    image?: string | null;
+  } | null;
   // The API returns tags directly, not task_tags
   tags?: Array<{
     id: string;
     name: string;
-    color: string;
+    color: string | null;
   }>;
+  creator?: {
+    id: string;
+    name: string | null;
+    email: string | null;
+    image?: string | null;
+  };
+  assignee_id?: string | null;
+  project_id?: string;
+  created_at?: string | Date;
+  updated_at?: string | Date;
 };
 
 type Project = {
   id: string;
   name: string;
-  description?: string;
-  created_at: string;
-  owner?: {
-    id: string;
-    name: string;
-    email: string;
-  };
+  description?: string | null;
+  created_at: string | Date;
+  updated_at?: string | Date;
+  creator_id?: string;
 };
 
 export default function ProjectDetail() {
@@ -73,66 +81,124 @@ export default function ProjectDetail() {
     }
   }, [status, router]);
 
-  // Fetch project data
+  // Fetch project data using tRPC
+  const { data: projectData, error: projectError, isLoading } = api.project.getById.useQuery(
+    { id: projectId as string },
+    {
+      enabled: !!projectId && !!session?.user,
+    }
+  );
+
+  // Update state when project data is fetched
   useEffect(() => {
-    const fetchProjectData = async () => {
-      if (!session?.user || !projectId || typeof projectId !== 'string') return;
+    if (projectData) {
+      // Convert the project data to match our Project type
+      setProject({
+        ...projectData.project,
+        description: projectData.project.description || undefined,
+        created_at: projectData.project.created_at.toString()
+      });
+      
+      setUserRole(projectData.userRole);
+      
+      // Convert the tasks data to match our Task type
+      setTasks(projectData.tasks.map(task => ({
+        ...task,
+        description: task.description || undefined,
+        due_date: task.due_date ? task.due_date.toString() : undefined,
+        created_at: task.created_at.toString(),
+        updated_at: task.updated_at.toString(),
+        assignee: task.assignee ? {
+          ...task.assignee,
+          name: task.assignee.name || '',
+          email: task.assignee.email || '',
+          image: task.assignee.image || undefined
+        } : undefined,
+        tags: task.tags ? task.tags.map(tag => ({
+          ...tag,
+          color: tag.color || ''
+        })) : []
+      })));
+      
+      // Convert the members data to match our ProjectMember type
+      setMembers(projectData.members.map(member => ({
+        id: member.id,
+        name: member.name || '',
+        email: member.email || '',
+        role: member.role,
+        image: member.avatar_url || undefined,
+        avatar_url: member.avatar_url || undefined
+      })));
+      
+      setLoading(false);
+    }
+  }, [projectData]);
 
-      try {
-        setLoading(true);
-        setError(null);
+  // Handle error from tRPC query
+  useEffect(() => {
+    if (projectError) {
+      console.error('Error fetching project data:', projectError);
+      setError(projectError.message || 'Failed to load project data');
+      setLoading(false);
+    }
+  }, [projectError]);
 
-        // Fetch all project data in a single request
-        const response = await axios.get(`/api/projects/${projectId}/data`);
-        const data = response.data;
-        
-        if (!data || !data.project) {
-          setError('Project not found');
-          setLoading(false);
-          return;
-        }
+  // Update loading state based on tRPC query
+  useEffect(() => {
+    setLoading(isLoading);
+  }, [isLoading]);
 
-        setProject(data.project);
-        setUserRole(data.userRole);
-        setTasks(data.tasks || []);
-        setMembers(data.members || []);
-
-      } catch (error: any) {
-        console.error('Error fetching project data:', error);
-        setError(error.response?.data?.error || 'Failed to load project data');
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    fetchProjectData();
-  }, [projectId, session?.user]);
+  // Handle delete task using tRPC
+  const deleteTaskMutation = api.task.delete.useMutation({
+    onSuccess: (_, variables) => {
+      // Update tasks list on successful deletion
+      setTasks(tasks.filter(task => task.id !== variables.id));
+    },
+    onError: (error) => {
+      console.error('Error deleting task:', error);
+      alert(`Error deleting task: ${error.message || 'Unknown error'}`);
+    },
+  });
 
   // Handle delete task
-  const handleDeleteTask = async (taskId: string) => {
+  const handleDeleteTask = (taskId: string) => {
     if (!confirm('Are you sure you want to delete this task?')) return;
-
-    try {
-      const response = await axios.delete(`/api/tasks/${taskId}`);
-      
-      if (response.status === 200) {
-        // Update tasks list
-        setTasks(tasks.filter(task => task.id !== taskId));
-      }
-    } catch (error: any) {
-      console.error('Error deleting task:', error);
-      alert(`Error deleting task: ${error.response?.data?.error || 'Unknown error'}`);
-    }
+    deleteTaskMutation.mutate({ id: taskId });
   };
+
+  // Refetch project data after task creation
+  const { refetch: refetchProjectData } = api.project.getById.useQuery(
+    { id: projectId as string },
+    {
+      enabled: false, // Only fetch when manually triggered
+    }
+  );
 
   const handleTaskFormSuccess = async () => {
     setShowTaskForm(false);
     
     if (projectId && typeof projectId === 'string') {
       try {
-        const response = await axios.get(`/api/projects/${projectId}/data`);
-        if (response.data && response.data.tasks) {
-          setTasks(response.data.tasks);
+        const result = await refetchProjectData();
+        if (result.data && result.data.tasks) {
+          // Convert the tasks data to match our Task type
+          setTasks(result.data.tasks.map(task => ({
+            ...task,
+            description: task.description || undefined,
+            due_date: task.due_date ? task.due_date.toString() : undefined,
+            created_at: task.created_at.toString(),
+            updated_at: task.updated_at.toString(),
+            assignee: task.assignee ? {
+              ...task.assignee,
+              name: task.assignee.name || '',
+              email: task.assignee.email || '',
+              image: task.assignee.image || undefined
+            } : undefined,
+            tags: task.tags ? task.tags.map(tag => ({
+              ...tag,
+              color: tag.color || ''
+            })) : []
+          })));
         }
       } catch (error) {
         console.error('Error refreshing tasks:', error);
@@ -306,20 +372,27 @@ export default function ProjectDetail() {
                 {tasks.length > 0 ? (
                   <div className="space-y-4">
                     {tasks.map((task) => (
-                      <TaskCard
-                        key={task.id}
-                        id={task.id}
-                        title={task.title}
-                        description={task.description}
-                        status={task.status as TaskStatus}
-                        priority={task.priority as TaskPriority}
-                        dueDate={task.due_date}
-                        assignee={task.assignee ? {
-                          ...task.assignee,
-                          avatarUrl: task.assignee.image // Map image to avatarUrl expected by TaskCard
-                        } : undefined}
-                        tags={task.tags || []}
-                      />
+                      <div key={task.id} className="mb-4">
+                        <TaskCard
+                          id={task.id}
+                          title={task.title}
+                          description={task.description || undefined}
+                          status={task.status as 'todo' | 'in_progress' | 'review' | 'completed'}
+                          priority={task.priority as 'low' | 'medium' | 'high' | 'urgent'}
+                          dueDate={task.due_date || undefined}
+                          assignee={task.assignee ? {
+                            id: task.assignee.id,
+                            name: task.assignee.name || '',
+                            email: task.assignee.email || '',
+                            avatarUrl: task.assignee.image || undefined
+                          } : null}
+                          tags={task.tags ? task.tags.map(tag => ({
+                            id: tag.id,
+                            name: tag.name,
+                            color: tag.color || ''
+                          })) : []}
+                        />
+                      </div>
                     ))}
                   </div>
                 ) : (
@@ -392,19 +465,19 @@ export default function ProjectDetail() {
                               <img
                                 className="h-8 w-8 rounded-full"
                                 src={member.image}
-                                alt={member.name}
+                                alt={member.name || 'Member'}
                               />
                             ) : (
                               <div className="h-8 w-8 rounded-full bg-indigo-600 flex items-center justify-center">
                                 <span className="text-sm font-medium text-white">
-                                  {member.name.charAt(0).toUpperCase()}
+                                  {member.name ? member.name.charAt(0).toUpperCase() : 'U'}
                                 </span>
                               </div>
                             )}
                           </div>
                           <div className="flex-1 min-w-0">
-                            <p className="text-sm font-medium text-gray-900 truncate">{member.name}</p>
-                            <p className="text-sm text-gray-500 truncate">{member.email}</p>
+                            <p className="text-sm font-medium text-gray-900 truncate">{member.name || 'Unknown User'}</p>
+                            <p className="text-sm text-gray-500 truncate">{member.email || 'No email'}</p>
                           </div>
                           <div>
                             <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium

@@ -6,7 +6,7 @@ import { GetServerSideProps } from 'next';
 import { getServerAuthSession } from '@/server/auth';
 import Layout from '@/components/layout/Layout';
 import ProjectForm from '@/components/projects/ProjectForm';
-import axios from 'axios';
+import { api } from '@/utils/api';
 
 export default function EditProject() {
   const router = useRouter();
@@ -18,46 +18,46 @@ export default function EditProject() {
   const [error, setError] = useState<string | null>(null);
   const [userRole, setUserRole] = useState<string | null>(null);
 
-  // Fetch project data
+  // Fetch project data using tRPC
+  const { data: projectData, error: projectError, isLoading } = api.project.getById.useQuery(
+    { id: id as string },
+    {
+      enabled: !!id && !!session,
+    }
+  );
+  
+  // Handle successful data fetch
   useEffect(() => {
-    async function fetchProject() {
-      if (!id || !session) return;
-
-      try {
-        setLoading(true);
-        
-        // Get project details
-        const projectResponse = await axios.get(`/api/projects/${id}`);
-        const projectData = projectResponse.data;
-
-        if (!projectData) throw new Error('Project not found');
-
-        // Check user's role in the project
-        const membersResponse = await axios.get(`/api/projects/${id}/members`);
-        const membersData = membersResponse.data;
-
-        // Find current user's role in the project
-        const currentUserMember = membersData.find(
-          (member: any) => member.user_id === session.user.id
-        );
-        
-        // Only owners and admins can edit projects
-        if (!currentUserMember || (currentUserMember.role !== 'owner' && currentUserMember.role !== 'admin')) {
-          throw new Error('You do not have permission to edit this project');
-        }
-
-        setUserRole(currentUserMember.role);
-        setProject(projectData);
-      } catch (err: any) {
-        console.error('Error fetching project:', err);
-        setError(err.response?.data?.error || err.message || 'Failed to load project');
-      } finally {
-        setLoading(false);
+    if (projectData) {
+      setProject(projectData.project);
+      setUserRole(projectData.userRole);
+      
+      // Only owners and admins can edit projects
+      if (projectData.userRole !== 'owner' && projectData.userRole !== 'admin') {
+        setError('You do not have permission to edit this project');
       }
     }
-
-    fetchProject();
-  }, [id, session]);
+  }, [projectData]);
+  
+  // Handle error from tRPC query
+  useEffect(() => {
+    if (projectError) {
+      console.error('Error fetching project:', projectError);
+      setError(projectError.message || 'Failed to load project');
+    }
+  }, [projectError]);
+  
+  // Update loading state based on tRPC query
+  useEffect(() => {
+    setLoading(isLoading);
+  }, [isLoading]);
+  
+  // Set error from tRPC if any
+  useEffect(() => {
+    if (projectError) {
+      setError(projectError.message);
+    }
+  }, [projectError]);
 
   // Handle successful update
   const handleSuccess = () => {

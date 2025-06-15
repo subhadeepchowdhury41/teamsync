@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useForm } from 'react-hook-form';
 import { useSession } from 'next-auth/react';
-import axios from 'axios';
+import { api } from '@/utils/api';
 
 type ProjectFormData = {
   name: string;
@@ -38,28 +38,48 @@ export default function ProjectForm({ projectId, project, isEditing, onSuccess, 
   }, [project, setValue]);
   
   // Fetch project data if editing but no project data provided
+  const { data: fetchedProject, error: fetchError } = api.project.getById.useQuery(
+    { id: projectId as string },
+    {
+      enabled: !!projectId && !project,
+    }
+  );
+  
+  // Handle project data when it's fetched
   useEffect(() => {
-    const fetchProjectData = async () => {
-      if (!projectId || project) return;
-      
-      try {
-        setLoading(true);
-        const response = await axios.get(`/api/projects/${projectId}`);
-        const projectData = response.data;
-        
-        if (projectData) {
-          setValue('name', projectData.name);
-          setValue('description', projectData.description || '');
-        }
-      } catch (error: any) {
-        setError(error.response?.data?.error || error.message);
-      } finally {
-        setLoading(false);
-      }
-    };
+    if (fetchedProject?.project) {
+      setValue('name', fetchedProject.project.name);
+      setValue('description', fetchedProject.project.description || '');
+      setLoading(false);
+    }
+  }, [fetchedProject, setValue]);
+  
+  // Handle fetch errors
+  useEffect(() => {
+    if (fetchError) {
+      setError(fetchError.message);
+      setLoading(false);
+    }
+  }, [fetchError]);
 
-    fetchProjectData();
-  }, [projectId, project, setValue]);
+  // tRPC mutations
+  const createProject = api.project.create.useMutation({
+    onSuccess: () => onSuccess(),
+    onError: (error) => {
+      console.error('Error creating project:', error);
+      setError(error.message || 'Failed to create project');
+      setLoading(false);
+    },
+  });
+
+  const updateProject = api.project.update.useMutation({
+    onSuccess: () => onSuccess(),
+    onError: (error) => {
+      console.error('Error updating project:', error);
+      setError(error.message || 'Failed to update project');
+      setLoading(false);
+    },
+  });
 
   const onSubmit = async (data: ProjectFormData) => {
     if (!session?.user) return;
@@ -68,24 +88,25 @@ export default function ProjectForm({ projectId, project, isEditing, onSuccess, 
       setLoading(true);
       setError(null);
 
-      const projectData = {
-        name: data.name,
-        description: data.description || null,
-      };
-
       if (projectId || isEditing) {
         // Update existing project
-        await axios.patch(`/api/projects/${projectId || project.id}`, projectData);
+        updateProject.mutate({
+          id: projectId || project.id,
+          name: data.name,
+          description: data.description || undefined,
+        });
       } else {
         // Create new project
-        await axios.post('/api/projects', projectData);
+        createProject.mutate({
+          name: data.name,
+          description: data.description || undefined,
+        });
       }
-
-      onSuccess();
+      
+      // Note: loading state and success handling is managed by the mutation hooks
     } catch (error: any) {
-      console.error('Error saving project:', error);
-      setError(error.response?.data?.error || error.message || 'Failed to save project');
-    } finally {
+      console.error('Error submitting form:', error);
+      setError(error.message || 'Failed to process form');
       setLoading(false);
     }
   };

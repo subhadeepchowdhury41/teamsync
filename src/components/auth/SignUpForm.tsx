@@ -1,40 +1,37 @@
 import React, { useState } from 'react';
 import { useRouter } from 'next/router';
 import Link from 'next/link';
-import axios from 'axios';
+import { api } from '@/utils/api';
 
 export default function SignUpForm() {
   const router = useRouter();
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  
+  // Use tRPC mutation hook
+  const registerMutation = api.auth.register.useMutation({
+    onSuccess: () => {
+      // Redirect to sign-in page after successful registration
+      router.push('/auth/signin?registered=true');
+    },
+    onError: (error) => {
+      console.error('Registration error:', error);
+      setError(error.message || 'An error occurred during sign up. Please try again.');
+    },
+  });
 
   const handleSignUp = async (e: React.FormEvent) => {
     e.preventDefault();
-    setLoading(true);
     setError(null);
 
-    try {
-      // Register user with our API
-      const response = await axios.post('/api/auth/register', {
-        name,
-        email,
-        password,
-      });
-
-      // Redirect to sign-in page after successful registration
-      router.push('/auth/signin?registered=true');
-    } catch (error: any) {
-      console.error('Registration error:', error);
-      setError(
-        error.response?.data?.error ||
-        'An error occurred during sign up. Please try again.'
-      );
-    } finally {
-      setLoading(false);
-    }
+    // Use tRPC mutation to register user
+    registerMutation.mutate({
+      name,
+      email,
+      password,
+    });
   };
 
   return (
@@ -114,10 +111,10 @@ export default function SignUpForm() {
           <div>
             <button
               type="submit"
-              disabled={loading}
+              disabled={registerMutation.isPending}
               className="flex w-full justify-center rounded-md bg-indigo-600 px-3 py-1.5 text-sm font-semibold leading-6 text-white shadow-sm hover:bg-indigo-500 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-600"
             >
-              {loading ? 'Creating account...' : 'Sign up'}
+              {registerMutation.isPending ? 'Creating account...' : 'Sign up'}
             </button>
           </div>
         </form>

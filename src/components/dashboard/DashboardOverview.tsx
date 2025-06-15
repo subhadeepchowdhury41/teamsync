@@ -3,61 +3,68 @@ import { useSession } from 'next-auth/react';
 import Link from 'next/link';
 import TaskCard from '../tasks/TaskCard';
 import ProjectCard from '../projects/ProjectCard';
+import { api } from '@/utils/api';
+import { type DashboardData, Project, Task, TaskCounts } from '@/types/dashboard';
 
 export default function DashboardOverview() {
   const { data: session } = useSession();
   const user = session?.user;
   const [loading, setLoading] = useState(true);
-  const [recentTasks, setRecentTasks] = useState<any[]>([]);
-  const [projects, setProjects] = useState<any[]>([]);
-  const [upcomingTasks, setUpcomingTasks] = useState<any[]>([]);
-  const [taskCounts, setTaskCounts] = useState({
-    total: 0,
-    completed: 0,
-    inProgress: 0,
-    todo: 0,
+
+  // Use tRPC query to fetch dashboard data
+  const { 
+    data: dashboardData, 
+    isLoading: isDashboardLoading, 
+    error: dashboardError 
+  } = api.dashboard.getData.useQuery(undefined, {
+    enabled: !!user,
+    onError: (error: any) => {
+      console.error('Error fetching dashboard data:', error.message);
+      setLoading(false);
+    },
   });
 
+  // Handle loading state
   useEffect(() => {
-    if (!user || !user.id) return;
-    
-    const fetchDashboardData = async () => {
-      setLoading(true);
-      try {
-        // Fetch all dashboard data from our new API endpoint
-        const response = await fetch('/api/dashboard');
-        
-        if (!response.ok) {
-          throw new Error('Failed to fetch dashboard data');
-        }
-        
-        const data = await response.json();
-        
-        // Update state with the fetched data
-        setProjects(data.projects || []);
-        setRecentTasks(data.recentTasks || []);
-        setUpcomingTasks(data.upcomingTasks || []);
-        setTaskCounts(data.taskCounts || {
-          total: 0,
-          completed: 0,
-          inProgress: 0,
-          todo: 0,
-        });
-        
-        setLoading(false);
-      } catch (error) {
-        console.error('Error fetching dashboard data:', error);
-        setLoading(false);
-      }
+    setLoading(isDashboardLoading);
+  }, [isDashboardLoading]);
+
+  // Destructure the dashboard data
+  const { 
+    projects = [], 
+    recentTasks = [], 
+    upcomingTasks = [], 
+    taskCounts = { total: 0, completed: 0, overdue: 0 }
+  } = dashboardData || {};
+
+  // Helper function to get project stats
+  const getProjectStats = (project: any) => {
+    // Since the project data doesn't include members or tasks directly from the API,
+    // we'll need to modify the API to include this data if needed
+    return {
+      memberCount: 0, // This would need to be fetched from the API
+      taskCount: 0,   // This would need to be fetched from the API
+      completedTaskCount: 0 // This would need to be fetched from the API
     };
+  };
 
-    fetchDashboardData();
-  }, [user]);
+  // Handle loading state
+  useEffect(() => {
+    setLoading(isDashboardLoading);
+  }, [isDashboardLoading]);
 
-  if (loading) {
+  if (loading || !dashboardData) {
     return (
       <div className="flex justify-center items-center h-64">
         <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-indigo-500"></div>
+      </div>
+    );
+  }
+
+  if (dashboardError) {
+    return (
+      <div className="text-center py-8">
+        <p className="text-red-500">Error loading dashboard data</p>
       </div>
     );
   }
@@ -114,17 +121,16 @@ export default function DashboardOverview() {
         <div className="bg-white overflow-hidden shadow rounded-lg">
           <div className="p-5">
             <div className="flex items-center">
-              <div className="flex-shrink-0 bg-purple-500 rounded-md p-3">
+              <div className="flex-shrink-0 bg-red-500 rounded-md p-3">
                 <svg className="h-6 w-6 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
                 </svg>
               </div>
               <div className="ml-5 w-0 flex-1">
                 <dl>
-                  <dt className="text-sm font-medium text-gray-500 truncate">In Progress</dt>
+                  <dt className="text-sm font-medium text-gray-500 truncate">Overdue</dt>
                   <dd>
-                    <div className="text-lg font-medium text-gray-900">{taskCounts.inProgress}</div>
+                    <div className="text-lg font-medium text-gray-900">{taskCounts.overdue}</div>
                   </dd>
                 </dl>
               </div>
@@ -135,16 +141,16 @@ export default function DashboardOverview() {
         <div className="bg-white overflow-hidden shadow rounded-lg">
           <div className="p-5">
             <div className="flex items-center">
-              <div className="flex-shrink-0 bg-yellow-500 rounded-md p-3">
+              <div className="flex-shrink-0 bg-purple-500 rounded-md p-3">
                 <svg className="h-6 w-6 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z" />
                 </svg>
               </div>
               <div className="ml-5 w-0 flex-1">
                 <dl>
-                  <dt className="text-sm font-medium text-gray-500 truncate">To Do</dt>
+                  <dt className="text-sm font-medium text-gray-500 truncate">Total</dt>
                   <dd>
-                    <div className="text-lg font-medium text-gray-900">{taskCounts.todo}</div>
+                    <div className="text-lg font-medium text-gray-900">{taskCounts.total}</div>
                   </dd>
                 </dl>
               </div>
@@ -170,9 +176,7 @@ export default function DashboardOverview() {
                 id={project.id}
                 name={project.name}
                 description={project.description}
-                memberCount={project.memberCount}
-                taskCount={project.taskCount}
-                completedTaskCount={project.completedTaskCount}
+                created_at={project.created_at}
               />
             ))}
           </div>

@@ -1,31 +1,43 @@
-import type { SSTConfig } from "sst";
-import { NextjsSite } from "sst/constructs";
+import { SSTConfig } from "sst";
 
-export default {
-  config(_input: any) {
+// Define the stack function using a different approach
+const config = {
+  config() {
     return {
       name: "teamsync",
       region: "us-east-1",
     };
   },
-  stacks(app: any) {
-    app.stack(function Site({ stack }: { stack: any }) {
-      const site = new NextjsSite(stack, "site", {
-        customDomain: {
-          domainName:
-            stack.stage === "prod" ? "teamsync.com" : `${stack.stage}.teamsync.com`,
-          domainAlias:
-            stack.stage === "prod" ? "www.teamsync.com" : undefined,
-        },
+  async stacks(app: any) {
+    // Import the NextjsSite construct inside the stacks function
+    const { Resource } = await import("sst");
+    
+    app.stack(({ stack }: { stack: any }) => {
+      // Create the site with NextjsSite construct
+      const site = new Resource.App(stack, "site", {
         environment: {
-          NEXT_PUBLIC_SUPABASE_URL: process.env.NEXT_PUBLIC_SUPABASE_URL || "",
-          NEXT_PUBLIC_SUPABASE_ANON_KEY: process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || "",
+          // Database
+          DATABASE_URL: process.env.DATABASE_URL || "",
+          
+          // NextAuth
+          NEXTAUTH_SECRET: process.env.NEXTAUTH_SECRET || "",
+          NEXTAUTH_URL: process.env.NEXTAUTH_URL || "",
+          
+          // OAuth providers
+          GITHUB_CLIENT_ID: process.env.GITHUB_CLIENT_ID || "",
+          GITHUB_CLIENT_SECRET: process.env.GITHUB_CLIENT_SECRET || "",
+          GOOGLE_CLIENT_ID: process.env.GOOGLE_CLIENT_ID || "",
+          GOOGLE_CLIENT_SECRET: process.env.GOOGLE_CLIENT_SECRET || "",
         },
       });
-
+      
+      // Add outputs
       stack.addOutputs({
-        SiteUrl: site.url,
+        SiteUrl: site.url || "",
       });
     });
   },
-} satisfies SSTConfig;
+};
+
+// Export as ESM module
+export default config satisfies SSTConfig;

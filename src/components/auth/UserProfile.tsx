@@ -1,7 +1,11 @@
 import React, { useState, useEffect } from 'react';
 import { useForm } from 'react-hook-form';
+import { api } from '@/utils/api';
 import { useSession } from 'next-auth/react';
-import axios from 'axios';
+import { type Session } from 'next-auth';
+import { type TRPCClientErrorLike } from '@trpc/client';
+import { type RouterInputs, type RouterOutputs } from '@/utils/api';
+import { AppRouter } from '@/server/trpc';
 
 type ProfileFormData = {
   name: string;
@@ -17,11 +21,22 @@ type UserProfileData = {
 
 export default function UserProfile() {
   const { data: session } = useSession();
+
+  // Check if user is authenticated
+  if (!session?.user) {
+    return null;
+  }
+
+  const utils = api.useUtils();
+  const userId = session?.user?.id;
+
+  // State management
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
   const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
   const [uploading, setUploading] = useState(false);
 
+  // Form handling
   const {
     register,
     handleSubmit,
@@ -29,34 +44,53 @@ export default function UserProfile() {
     formState: { errors },
   } = useForm<ProfileFormData>();
 
-  useEffect(() => {
-    if (session?.user) {
-      fetchProfile();
+  // Profile query
+  const { data: profileData, isLoading: isProfileLoading, error: profileError } = api.user.me.useQuery(
+    undefined,
+    {
+      enabled: !!session?.user,
     }
-  }, [session]);
+  );
 
-  const fetchProfile = async () => {
-    try {
-      setLoading(true);
-      
-      if (!session?.user) return;
-
-      const response = await axios.get<UserProfileData>('/api/users/profile');
-      const data = response.data;
-      
-      setValue('name', data.name);
-      setValue('email', data.email);
-      setAvatarUrl(data.avatar_url);
-    } catch (error: any) {
+  // Handle profile data and errors
+  useEffect(() => {
+    if (profileError) {
       setMessage({ 
         type: 'error', 
-        text: error.response?.data?.error || 'Failed to fetch profile' 
+        text: profileError.message || 'Failed to fetch profile' 
       });
-    } finally {
-      setLoading(false);
     }
-  };
+    if (profileData) {
+      setValue('name', profileData.name || '');
+      setValue('email', profileData.email || '');
+      setAvatarUrl(profileData.avatar_url);
+    }
+  }, [profileError, profileData, setValue, setAvatarUrl]);
 
+  // Loading state
+  useEffect(() => {
+    setLoading(isProfileLoading);
+  }, [isProfileLoading]);
+
+  // Use tRPC mutation for avatar upload
+  const uploadAvatarMutation = api.user.updateProfile.useMutation({
+    onSuccess: (data: RouterOutputs['user']['updateProfile']) => {
+      setAvatarUrl(data.avatar_url);
+      setMessage({ type: 'success', text: 'Avatar updated successfully!' });
+      void utils.user.me.invalidate();
+    },
+    onError: (error: TRPCClientErrorLike<AppRouter>) => {
+      setMessage({ 
+        type: 'error', 
+        text: error.message 
+      });
+    },
+    onSettled: () => {
+      setUploading(false);
+    }
+  });
+
+  // Handle avatar upload
   const uploadAvatar = async (event: React.ChangeEvent<HTMLInputElement>) => {
     try {
       setUploading(true);
@@ -66,55 +100,57 @@ export default function UserProfile() {
       }
 
       const file = event.target.files[0];
+      if (!file) {
+        throw new Error('File not found');
+      }
+
+      const reader = new FileReader();
       
-      // Create form data for file upload
-      const formData = new FormData();
-      formData.append('avatar', file as Blob);
-      
-      // Upload the avatar
-      const response = await axios.post('/api/users/avatar', formData, {
-        headers: {
-          'Content-Type': 'multipart/form-data',
-        },
-      });
-      
-      // Update the avatar URL
-      const { avatarUrl: newAvatarUrl } = response.data;
-      setAvatarUrl(newAvatarUrl);
-      setMessage({ type: 'success', text: 'Avatar updated successfully!' });
+      reader.readAsDataURL(file);
+      reader.onload = () => {
+        const base64Image = reader.result as string;
+        uploadAvatarMutation.mutate({ 
+          name: profileData?.name || '',
+          image: base64Image,
+        });
+      };
+      reader.onerror = () => {
+        setMessage({ type: 'error', text: 'Failed to process image' });
+        setUploading(false);
+      };
     } catch (error: any) {
       setMessage({ 
         type: 'error', 
-        text: error.response?.data?.error || 'Failed to upload avatar' 
+        text: error.message || 'Failed to upload avatar' 
       });
-    } finally {
       setUploading(false);
     }
   };
 
+  // Use tRPC mutation for profile update
+  const { mutate: updateProfile, isPending: isLoading } = api.user.updateProfile.useMutation({
+    onSuccess: () => {
+      setMessage({ type: 'success', text: 'Profile updated successfully' });
+      void utils.user.me.invalidate();
+    },
+    onError: (error: TRPCClientErrorLike<AppRouter>) => {
+      setMessage({ type: 'error', text: error.message });
+    },
+  });
+
   const onSubmit = async (data: ProfileFormData) => {
     try {
-      setLoading(true);
-      setMessage(null);
-
-      if (!session?.user) return;
-
-      // Update the user profile
-      await axios.put('/api/users/profile', {
+      updateProfile({
         name: data.name,
-        avatar_url: avatarUrl
       });
-
-      setMessage({ type: 'success', text: 'Profile updated successfully!' });
     } catch (error: any) {
       setMessage({ 
         type: 'error', 
-        text: error.response?.data?.error || 'Failed to update profile' 
+        text: error.message || 'Failed to update profile' 
       });
-    } finally {
-      setLoading(false);
     }
   };
+
 
   return (
     <div className="bg-white shadow rounded-lg">
