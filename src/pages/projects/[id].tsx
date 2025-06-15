@@ -7,15 +7,41 @@ import TaskCard from '@/components/tasks/TaskCard';
 import TaskForm from '@/components/tasks/TaskForm';
 import TagManager from '@/components/tags/TagManager';
 import { api } from '@/utils/api';
+import { TRPCClientError } from '@trpc/client';
+import type { Session } from 'next-auth';
+import { PrismaClient } from '@prisma/client';
 
-type ProjectMember = {
+// Add proper type definitions
+interface TaskAssignee {
   id: string;
-  name: string | null;
-  email: string | null;
+  name: string;
+  email: string;
+  image?: string;
+}
+
+interface TaskTag {
+  id: string;
+  name: string;
+  color: string;
+}
+
+interface ProjectMember {
+  id: string;
+  name: string;
+  email: string;
   role: string;
-  image?: string | null;
-  avatar_url?: string | null;
-};
+  image?: string;
+  avatar_url?: string;
+}
+
+interface Project {
+  id: string;
+  name: string;
+  description?: string;
+  created_at: string;
+  updated_at?: string;
+  creator_id?: string;
+}
 
 type TaskStatus = 'todo' | 'in_progress' | 'review' | 'completed';
 type TaskPriority = 'low' | 'medium' | 'high' | 'urgent';
@@ -24,8 +50,8 @@ type Task = {
   id: string;
   title: string;
   description?: string | null;
-  status: string; // Keep as string from API
-  priority: string; // Keep as string from API
+  status: TaskStatus; 
+  priority: TaskPriority; 
   due_date?: string | null;
   assignee?: {
     id: string;
@@ -49,15 +75,6 @@ type Task = {
   project_id?: string;
   created_at?: string | Date;
   updated_at?: string | Date;
-};
-
-type Project = {
-  id: string;
-  name: string;
-  description?: string | null;
-  created_at: string | Date;
-  updated_at?: string | Date;
-  creator_id?: string;
 };
 
 export default function ProjectDetail() {
@@ -102,33 +119,34 @@ export default function ProjectDetail() {
       setUserRole(projectData.userRole);
       
       // Convert the tasks data to match our Task type
-      setTasks(projectData.tasks.map(task => ({
+      setTasks(projectData.tasks.map((task: Task) => ({
         ...task,
         description: task.description || undefined,
         due_date: task.due_date ? task.due_date.toString() : undefined,
-        created_at: task.created_at.toString(),
-        updated_at: task.updated_at.toString(),
+        created_at: task.created_at?.toString() || undefined,
+        updated_at: task.updated_at?.toString() || undefined,
         assignee: task.assignee ? {
-          ...task.assignee,
+          id: task.assignee.id,
           name: task.assignee.name || '',
           email: task.assignee.email || '',
           image: task.assignee.image || undefined
         } : undefined,
-        tags: task.tags ? task.tags.map(tag => ({
-          ...tag,
+        tags: task.tags ? task.tags.map((tag): { id: string; name: string; color: string } => ({
+          id: tag.id,
+          name: tag.name,
           color: tag.color || ''
         })) : []
       })));
-      
+
       // Convert the members data to match our ProjectMember type
-      setMembers(projectData.members.map(member => ({
+      setMembers(projectData.members.map((member: ProjectMember) => ({
         id: member.id,
         name: member.name || '',
         email: member.email || '',
-        role: member.role,
-        image: member.avatar_url || undefined,
-        avatar_url: member.avatar_url || undefined
-      })));
+        role: member.role || 'member',
+        avatar_url: member.avatar_url || '',
+        image: member.image || '',
+      })) as ProjectMember[]);
       
       setLoading(false);
     }
@@ -150,11 +168,11 @@ export default function ProjectDetail() {
 
   // Handle delete task using tRPC
   const deleteTaskMutation = api.task.delete.useMutation({
-    onSuccess: (_, variables) => {
+    onSuccess: (_: any, { id }: { id: string }) => {
       // Update tasks list on successful deletion
-      setTasks(tasks.filter(task => task.id !== variables.id));
+      setTasks(tasks.filter((task: Task) => task.id !== id));
     },
-    onError: (error) => {
+    onError: (error: TRPCClientError<any>) => {
       console.error('Error deleting task:', error);
       alert(`Error deleting task: ${error.message || 'Unknown error'}`);
     },
@@ -166,7 +184,7 @@ export default function ProjectDetail() {
       // Redirect to projects list after successful deletion
       router.push('/projects');
     },
-    onError: (error) => {
+    onError: (error: TRPCClientError<any>) => {
       console.error('Error deleting project:', error);
       alert(`Error deleting project: ${error.message || 'Unknown error'}`);
     },
@@ -202,19 +220,19 @@ export default function ProjectDetail() {
         const result = await refetchProjectData();
         if (result.data && result.data.tasks) {
           // Convert the tasks data to match our Task type
-          setTasks(result.data.tasks.map(task => ({
+          setTasks(result.data.tasks.map((task: Task) => ({
             ...task,
             description: task.description || undefined,
             due_date: task.due_date ? task.due_date.toString() : undefined,
-            created_at: task.created_at.toString(),
-            updated_at: task.updated_at.toString(),
+            created_at: task.created_at?.toString() || undefined,
+            updated_at: task.updated_at?.toString() || undefined,
             assignee: task.assignee ? {
               ...task.assignee,
               name: task.assignee.name || '',
               email: task.assignee.email || '',
               image: task.assignee.image || undefined
             } : undefined,
-            tags: task.tags ? task.tags.map(tag => ({
+            tags: task.tags ? task.tags.map((tag: any) => ({
               ...tag,
               color: tag.color || ''
             })) : []
