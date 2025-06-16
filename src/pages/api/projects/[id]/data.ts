@@ -1,7 +1,7 @@
 import { NextApiRequest, NextApiResponse } from "next";
 import { getServerSession } from "next-auth/next";
 import { authOptions } from "@/server/auth";
-import { db } from "@/server/db";
+import { db } from "@/server/db-serverless";
 
 export default async function handler(
   req: NextApiRequest,
@@ -43,7 +43,7 @@ export default async function handler(
         Array.isArray(userMembership) &&
         userMembership.length > 0 &&
         userMembership[0]
-          ? (userMembership[0].role as string)
+          ? (userMembership[0].role)
           : "member";
 
       // Use raw SQL query to fetch project details

@@ -1,6 +1,6 @@
 import { NextApiRequest, NextApiResponse } from "next";
 import { hash } from "bcrypt";
-import { db } from "@/server/db";
+import { db } from "@/server/db-serverless";
 import { z } from "zod";
 
 const userSchema = z.object({
@@ -43,7 +43,7 @@ export default async function handler(
     });
 
     // Ensure we have valid user data before returning
-    if (!user || !user.id) {
+    if (!user?.id) {
       return res.status(500).json({ error: "Failed to create user" });
     }
 

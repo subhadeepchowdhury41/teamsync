@@ -1,11 +1,9 @@
 import Head from 'next/head';
-import { useSession } from "next-auth/react";
 import Layout from "@/components/layout/Layout";
 import { GetServerSideProps } from "next";
 import { getServerAuthSession } from "@/server/auth";
 
 export default function Home() {
-  const { data: session } = useSession();
 
   // Show welcome page for non-authenticated users
   // (Server-side will handle redirects for authenticated users)

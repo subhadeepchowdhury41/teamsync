@@ -18,19 +18,21 @@ export default function TaskDetails() {
   const { id } = router.query;
   const { data: session, status } = useSession();
   const [error, setError] = useState('');
+  
+  // Compute taskId before any conditional returns
+  const taskId = typeof id === 'string' ? id : '';
+  
+  // Use tRPC query to fetch task details - declare before conditional return
+  const { data: taskData, isLoading: loading, error: trpcError } = api.task.getById.useQuery(
+    { id: taskId },
+    { enabled: !!taskId && !!session }
+  );
 
   // Redirect to signin if unauthenticated
   if (status === 'unauthenticated') {
     router.push('/auth/signin');
     return null;
   }
-
-  // Use tRPC query to fetch task details
-  const taskId = typeof id === 'string' ? id : '';
-  const { data: taskData, isLoading: loading, error: trpcError } = api.task.getById.useQuery(
-    { id: taskId },
-    { enabled: !!taskId && !!session }
-  );
 
   useEffect(() => {
     if (trpcError) {

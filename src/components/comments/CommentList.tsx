@@ -22,19 +22,21 @@ interface Comment {
 
 export function CommentList({ taskId }: CommentListProps) {
   const { data: session } = useSession();
-
-  // Check if user is authenticated
-  if (!session?.user) {
-    return null;
-  }
-
-  // Get userId from session
-  const userId = session.user.id;
+  
+  // Initialize state hooks first (before any conditional returns)
   const [newComment, setNewComment] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const utils = api.useUtils();
+  
+  // Get userId from session (only used after the authentication check)
+  const userId = session?.user?.id;
+
+  // Check if user is authenticated
+  if (!session?.user) {
+    return null;
+  }
 
   // Query to fetch comments for the task
   const {

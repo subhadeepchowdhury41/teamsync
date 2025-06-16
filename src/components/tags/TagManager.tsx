@@ -1,11 +1,12 @@
 import React, { useState, useEffect } from "react";
-import axios from "axios";
 import { useSession } from "next-auth/react";
+import { api } from "@/utils/api";
+import { TRPCClientErrorLike } from "@trpc/client";
 
 interface Tag {
   id: string;
   name: string;
-  color: string;
+  color: string | null;
   project_id: string;
 }
 
@@ -15,7 +16,6 @@ interface TagManagerProps {
 }
 
 export default function TagManager({ projectId, onTagsChange }: TagManagerProps) {
-  const { data: session } = useSession();
   const [tags, setTags] = useState<Tag[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState("");
@@ -33,17 +33,44 @@ export default function TagManager({ projectId, onTagsChange }: TagManagerProps)
     }
   }, [projectId]);
 
-  const fetchTags = async () => {
-    setIsLoading(true);
-    setError("");
-    try {
-      const response = await axios.get(`/api/projects/${projectId}/tags`);
-      setTags(response.data);
-    } catch (err: any) {
-      setError(err.response?.data?.error || "Failed to fetch tags");
-      console.error("Error fetching tags:", err);
-    } finally {
+  // Use tRPC query for fetching tags
+  const { data: tagData, refetch: refetchTags, isLoading: isFetchingTags, error: tagsError } = api.project.getTags.useQuery(
+    { projectId },
+    {
+      enabled: !!projectId,
+    }
+  );
+
+  // Handle data from tRPC query
+  useEffect(() => {
+    if (tagData) {
+      setTags(tagData.map(tag => ({
+        ...tag,
+        color: tag.color || "#3B82F6" // Provide default color if null
+      })));
       setIsLoading(false);
+    }
+  }, [tagData]);
+
+  // Handle error from tRPC query
+  useEffect(() => {
+    if (tagsError) {
+      setError(tagsError.message || "Failed to fetch tags");
+      setIsLoading(false);
+    }
+  }, [tagsError]);
+
+  // Update loading state based on tRPC query
+  useEffect(() => {
+    setIsLoading(isFetchingTags);
+  }, [isFetchingTags]);
+
+  const fetchTags = async () => {
+    try {
+      await refetchTags();
+    } catch (err: any) {
+      setError(err.message || "Failed to fetch tags");
+      console.error("Error fetching tags:", err);
     }
   };
 
@@ -52,7 +79,7 @@ export default function TagManager({ projectId, onTagsChange }: TagManagerProps)
       setEditingTag(tag);
       setFormData({
         name: tag.name,
-        color: tag.color,
+        color: tag.color || "#3B82F6",
       });
     } else {
       setEditingTag(null);
@@ -77,6 +104,32 @@ export default function TagManager({ projectId, onTagsChange }: TagManagerProps)
     }));
   };
 
+  // Create tag mutation
+  const createTagMutation = api.project.createTag.useMutation({
+    onSuccess: () => {
+      void fetchTags();
+      handleCloseModal();
+      if (onTagsChange) onTagsChange();
+    },
+    onError: (error) => {
+      setError(error.message || "Failed to create tag");
+      console.error("Error creating tag:", error);
+    },
+  });
+
+  // Update tag mutation
+  const updateTagMutation = api.project.updateTag.useMutation({
+    onSuccess: () => {
+      void fetchTags();
+      handleCloseModal();
+      if (onTagsChange) onTagsChange();
+    },
+    onError: (error) => {
+      setError(error.message || "Failed to update tag");
+      console.error("Error updating tag:", error);
+    },
+  });
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
@@ -88,32 +141,37 @@ export default function TagManager({ projectId, onTagsChange }: TagManagerProps)
     try {
       if (editingTag) {
         // Update existing tag
-        await axios.put(`/api/projects/${projectId}/tags`, {
+        updateTagMutation.mutate({
           id: editingTag.id,
+          projectId,
           name: formData.name,
-          color: formData.color,
+          color: formData.color || "#3B82F6",
         });
       } else {
         // Create new tag
-        await axios.post(`/api/projects/${projectId}/tags`, {
+        createTagMutation.mutate({
+          projectId,
           name: formData.name,
-          color: formData.color,
+          color: formData.color || "#3B82F6",
         });
       }
-      
-      // Refresh tags list
-      await fetchTags();
-      handleCloseModal();
-      
-      // Notify parent component if needed
-      if (onTagsChange) {
-        onTagsChange();
-      }
     } catch (err: any) {
-      setError(err.response?.data?.error || "Failed to save tag");
+      setError(err.message || "Failed to save tag");
       console.error("Error saving tag:", err);
     }
   };
+
+  // Delete tag mutation
+  const deleteTagMutation = api.project.deleteTag.useMutation({
+    onSuccess: () => {
+      void fetchTags();
+      if (onTagsChange) onTagsChange();
+    },
+    onError: (error) => {
+      setError(error.message || "Failed to delete tag");
+      console.error("Error deleting tag:", error);
+    },
+  });
 
   const handleDeleteTag = async (tagId: string) => {
     if (!confirm("Are you sure you want to delete this tag? It will be removed from all tasks.")) {
@@ -121,17 +179,12 @@ export default function TagManager({ projectId, onTagsChange }: TagManagerProps)
     }
 
     try {
-      await axios.delete(`/api/projects/${projectId}/tags?tagId=${tagId}`);
-      
-      // Refresh tags list
-      await fetchTags();
-      
-      // Notify parent component if needed
-      if (onTagsChange) {
-        onTagsChange();
-      }
+      deleteTagMutation.mutate({
+        id: tagId,
+        projectId,
+      });
     } catch (err: any) {
-      setError(err.response?.data?.error || "Failed to delete tag");
+      setError(err.message || "Failed to delete tag");
       console.error("Error deleting tag:", err);
     }
   };
@@ -180,16 +233,16 @@ export default function TagManager({ projectId, onTagsChange }: TagManagerProps)
           {tags.map((tag) => (
             <div
               key={tag.id}
-              className="border rounded-lg p-2 flex justify-between items-center"
+              className="flex items-center justify-between p-4 bg-white rounded-lg shadow-md"
             >
               <div className="flex items-center">
                 <div
                   className="w-4 h-4 rounded-full mr-3"
-                  style={{ backgroundColor: tag.color }}
+                  style={{ backgroundColor: tag.color || "#3B82F6" }}
                 ></div>
-                <span className="text-xs">{tag.name}</span>
+                <span className="text-lg font-medium">{tag.name}</span>
               </div>
-              <div className="flex space-x-2">
+              <div className="flex items-center">
                 <button
                   onClick={() => handleOpenModal(tag)}
                   className="p-1 text-gray-500 hover:text-indigo-600"
@@ -288,7 +341,7 @@ export default function TagManager({ projectId, onTagsChange }: TagManagerProps)
                   Tag Color
                 </label>
                 <div className="flex flex-wrap gap-2 mb-2">
-                  {predefinedColors.map((color) => (
+                  {predefinedColors.map((color: string) => (
                     <button
                       key={color}
                       type="button"
@@ -299,7 +352,7 @@ export default function TagManager({ projectId, onTagsChange }: TagManagerProps)
                       }`}
                       style={{ backgroundColor: color }}
                       onClick={() =>
-                        setFormData((prev) => ({ ...prev, color }))
+                        setFormData((prev: {name: string; color: string}) => ({ ...prev, color }))
                       }
                     ></button>
                   ))}

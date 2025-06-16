@@ -7,10 +7,8 @@ import {
 } from "next-auth";
 import { type Adapter } from "next-auth/adapters";
 import CredentialsProvider from "next-auth/providers/credentials";
-import { compare, hash } from "bcrypt";
-
-import { env } from "@/env";
-import { db } from "@/server/db";
+import { compare } from "bcrypt";
+import { db } from "@/server/db-serverless";
 
 /**
  * Module augmentation for `next-auth` types. Allows us to add custom properties to the `session`
@@ -76,7 +74,7 @@ export const authOptions: NextAuthOptions = {
           }
         }) as any; // Type assertion to bypass Prisma type issues
 
-        if (!user || !user.hashedPassword) {
+        if (!user?.hashedPassword) {
           return null;
         }
 

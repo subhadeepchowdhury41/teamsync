@@ -21,7 +21,7 @@ type Project = {
 export default function Projects() {
   const { data: session } = useSession();
   const router = useRouter();
-  const { data: projectsData, isLoading, error } = api.project.list.useQuery();
+  const { data: projectsData, error } = api.project.list.useQuery();
 
   if (error) {
     return (

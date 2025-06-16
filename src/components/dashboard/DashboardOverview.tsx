@@ -17,12 +17,16 @@ export default function DashboardOverview() {
     isLoading: isDashboardLoading, 
     error: dashboardError 
   } = api.dashboard.getData.useQuery(undefined, {
-    enabled: !!user,
-    onError: (error: any) => {
-      console.error('Error fetching dashboard data:', error.message);
-      setLoading(false);
-    },
+    enabled: !!user
   });
+  
+  // Handle errors
+  useEffect(() => {
+    if (dashboardError) {
+      console.error('Error fetching dashboard data:', dashboardError.message);
+      setLoading(false);
+    }
+  }, [dashboardError]);
 
   // Handle loading state
   useEffect(() => {
@@ -37,16 +41,7 @@ export default function DashboardOverview() {
     taskCounts = { total: 0, completed: 0, overdue: 0 }
   } = dashboardData || {};
 
-  // Helper function to get project stats
-  const getProjectStats = (project: any) => {
-    // Since the project data doesn't include members or tasks directly from the API,
-    // we'll need to modify the API to include this data if needed
-    return {
-      memberCount: 0, // This would need to be fetched from the API
-      taskCount: 0,   // This would need to be fetched from the API
-      completedTaskCount: 0 // This would need to be fetched from the API
-    };
-  };
+  // No longer need this helper function as the API now provides these stats directly
 
   // Handle loading state
   useEffect(() => {
@@ -175,8 +170,10 @@ export default function DashboardOverview() {
                 key={project.id}
                 id={project.id}
                 name={project.name}
-                description={project.description}
-                created_at={project.created_at}
+                description={project.description || ''}
+                memberCount={project.memberCount || 0}
+                taskCount={project.taskCount || 0}
+                completedTaskCount={project.completedTaskCount || 0}
               />
             ))}
           </div>

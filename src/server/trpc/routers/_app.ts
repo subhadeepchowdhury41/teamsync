@@ -6,7 +6,6 @@ import { dashboardRouter } from "./dashboard";
 import { userRouter } from "./user";
 import { notificationRouter } from "./notification";
 import { commentRouter } from "./comment";
-import { exampleRouter } from "./example";
 import { authRouter } from "./auth";
 
 export const appRouter = router({
@@ -17,7 +16,6 @@ export const appRouter = router({
   user: userRouter,
   notification: notificationRouter,
   comment: commentRouter,
-  example: exampleRouter,
   auth: authRouter,
 });
 

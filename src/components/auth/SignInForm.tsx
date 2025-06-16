@@ -1,20 +1,20 @@
-import React, { useState, useEffect } from 'react';
-import { useRouter } from 'next/router';
-import Link from 'next/link';
-import { signIn } from 'next-auth/react';
+import React, { useState, useEffect } from "react";
+import { useRouter } from "next/router";
+import Link from "next/link";
+import { signIn } from "next-auth/react";
 
 export default function SignInForm() {
   const router = useRouter();
   const { registered } = router.query;
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
-  
+
   useEffect(() => {
-    if (registered === 'true') {
-      setSuccessMessage('Account created successfully! Please sign in.');
+    if (registered === "true") {
+      setSuccessMessage("Account created successfully! Please sign in.");
     }
   }, [registered]);
 
@@ -25,7 +25,7 @@ export default function SignInForm() {
     setSuccessMessage(null);
 
     try {
-      const result = await signIn('credentials', {
+      const result = await signIn("credentials", {
         email,
         password,
         redirect: false,
@@ -36,9 +36,9 @@ export default function SignInForm() {
       }
 
       // Redirect to dashboard on successful sign-in
-      router.push('/dashboard');
+      router.push("/dashboard");
     } catch (error: any) {
-      setError(error.message || 'Invalid email or password');
+      setError(error.message || "Invalid email or password");
     } finally {
       setLoading(false);
     }
@@ -62,12 +62,14 @@ export default function SignInForm() {
             </div>
           </div>
         )}
-        
+
         {successMessage && (
           <div className="mb-4 rounded-md bg-green-50 p-4">
             <div className="flex">
               <div className="ml-3">
-                <h3 className="text-sm font-medium text-green-800">{successMessage}</h3>
+                <h3 className="text-sm font-medium text-green-800">
+                  {successMessage}
+                </h3>
               </div>
             </div>
           </div>
@@ -75,7 +77,10 @@ export default function SignInForm() {
 
         <form className="space-y-6" onSubmit={handleSignIn}>
           <div>
-            <label htmlFor="email" className="block text-sm font-medium leading-6 text-gray-900">
+            <label
+              htmlFor="email"
+              className="block text-sm font-medium leading-6 text-gray-900"
+            >
               Email address
             </label>
             <div className="mt-2">
@@ -94,11 +99,17 @@ export default function SignInForm() {
 
           <div>
             <div className="flex items-center justify-between">
-              <label htmlFor="password" className="block text-sm font-medium leading-6 text-gray-900">
+              <label
+                htmlFor="password"
+                className="block text-sm font-medium leading-6 text-gray-900"
+              >
                 Password
               </label>
               <div className="text-sm">
-                <Link href="/auth/forgot-password" className="font-semibold text-indigo-600 hover:text-indigo-500">
+                <Link
+                  href="/auth/forgot-password"
+                  className="font-semibold text-indigo-600 hover:text-indigo-500"
+                >
                   Forgot password?
                 </Link>
               </div>
@@ -123,14 +134,17 @@ export default function SignInForm() {
               disabled={loading}
               className="flex w-full justify-center rounded-md bg-indigo-600 px-3 py-1.5 text-sm font-semibold leading-6 text-white shadow-sm hover:bg-indigo-500 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-600"
             >
-              {loading ? 'Signing in...' : 'Sign in'}
+              {loading ? "Signing in..." : "Sign in"}
             </button>
           </div>
         </form>
 
         <p className="mt-10 text-center text-sm text-gray-500">
-          Not a member?{' '}
-          <Link href="/auth/signup" className="font-semibold leading-6 text-indigo-600 hover:text-indigo-500">
+          Not a member?{" "}
+          <Link
+            href="/auth/signup"
+            className="font-semibold leading-6 text-indigo-600 hover:text-indigo-500"
+          >
             Create an account
           </Link>
         </p>

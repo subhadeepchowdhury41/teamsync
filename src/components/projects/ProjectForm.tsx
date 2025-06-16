@@ -39,7 +39,7 @@ export default function ProjectForm({ projectId, project, isEditing, onSuccess, 
   
   // Fetch project data if editing but no project data provided
   const { data: fetchedProject, error: fetchError } = api.project.getById.useQuery(
-    { id: projectId as string },
+    { id: projectId! },
     {
       enabled: !!projectId && !project,
     }

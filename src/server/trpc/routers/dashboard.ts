@@ -6,13 +6,23 @@ export const dashboardRouter = router({
     const userId = ctx.session.user.id;
     
     try {
-      // Get projects where user is a member
+      // Get projects where user is a member with member count and task count
       const projectMembers = await ctx.db.projectMember.findMany({
         where: {
           user_id: userId,
         },
         include: {
-          project: true,
+          project: {
+            include: {
+              members: true,
+              tasks: {
+                select: {
+                  id: true,
+                  status: true
+                }
+              }
+            }
+          },
         },
         orderBy: {
           created_at: "desc",
@@ -26,6 +36,9 @@ export const dashboardRouter = router({
         description: member.project.description,
         created_at: member.project.created_at.toISOString(),
         role: member.role,
+        memberCount: member.project.members.length,
+        taskCount: member.project.tasks.length,
+        completedTaskCount: member.project.tasks.filter(task => task.status === 'completed').length
       }));
 
       // Get recent tasks

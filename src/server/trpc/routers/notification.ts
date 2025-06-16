@@ -1,7 +1,7 @@
 import { TRPCError } from "@trpc/server";
 import { z } from "zod";
 import { router, protectedProcedure } from "../trpc";
-import { db } from "../../db";
+import { db } from "@/server/db-serverless";
 
 export const notificationRouter = router({
   // Get all notifications for the current user

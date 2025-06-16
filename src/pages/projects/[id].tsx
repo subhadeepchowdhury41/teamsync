@@ -7,9 +7,7 @@ import TaskCard from '@/components/tasks/TaskCard';
 import TaskForm from '@/components/tasks/TaskForm';
 import TagManager from '@/components/tags/TagManager';
 import { api } from '@/utils/api';
-import { TRPCClientError } from '@trpc/client';
-import type { Session } from 'next-auth';
-import { PrismaClient } from '@prisma/client';
+import { type TRPCClientErrorLike } from '@trpc/client';
 
 // Add proper type definitions
 interface TaskAssignee {
@@ -113,40 +111,58 @@ export default function ProjectDetail() {
       setProject({
         ...projectData.project,
         description: projectData.project.description || undefined,
-        created_at: projectData.project.created_at.toString()
+        created_at: projectData.project.created_at.toString(),
+        updated_at: projectData.project.updated_at ? projectData.project.updated_at.toString() : undefined
       });
       
       setUserRole(projectData.userRole);
       
       // Convert the tasks data to match our Task type
-      setTasks(projectData.tasks.map((task: Task) => ({
-        ...task,
-        description: task.description || undefined,
-        due_date: task.due_date ? task.due_date.toString() : undefined,
-        created_at: task.created_at?.toString() || undefined,
-        updated_at: task.updated_at?.toString() || undefined,
-        assignee: task.assignee ? {
-          id: task.assignee.id,
-          name: task.assignee.name || '',
-          email: task.assignee.email || '',
-          image: task.assignee.image || undefined
-        } : undefined,
-        tags: task.tags ? task.tags.map((tag): { id: string; name: string; color: string } => ({
-          id: tag.id,
-          name: tag.name,
-          color: tag.color || ''
-        })) : []
-      })));
+      setTasks(projectData.tasks.map((task: any) => {
+        // Ensure status is one of the valid TaskStatus values
+        const status = ['todo', 'in_progress', 'review', 'completed'].includes(task.status) 
+          ? task.status as TaskStatus 
+          : 'todo' as TaskStatus;
+          
+        // Ensure priority is one of the valid TaskPriority values
+        const priority = ['low', 'medium', 'high', 'urgent'].includes(task.priority)
+          ? task.priority as TaskPriority
+          : 'medium' as TaskPriority;
+          
+        return {
+          id: task.id,
+          title: task.title,
+          status,
+          priority,
+          description: task.description || undefined,
+          due_date: task.due_date ? task.due_date.toString() : undefined,
+          created_at: task.created_at ? task.created_at.toString() : undefined,
+          updated_at: task.updated_at ? task.updated_at.toString() : undefined,
+          assignee: task.assignee ? {
+            id: task.assignee.id,
+            name: task.assignee.name || '',
+            email: task.assignee.email || '',
+            image: task.assignee.image || undefined
+          } : undefined,
+          tags: task.tags ? task.tags.map((tag: any) => ({
+            id: tag.id,
+            name: tag.name,
+            color: tag.color || '#3B82F6'
+          })) : [],
+          project_id: task.project_id,
+          assignee_id: task.assignee_id
+        } as Task;
+      }));
 
       // Convert the members data to match our ProjectMember type
-      setMembers(projectData.members.map((member: ProjectMember) => ({
+      setMembers(projectData.members.map((member: any) => ({
         id: member.id,
         name: member.name || '',
         email: member.email || '',
         role: member.role || 'member',
         avatar_url: member.avatar_url || '',
         image: member.image || '',
-      })) as ProjectMember[]);
+      })));
       
       setLoading(false);
     }
@@ -172,7 +188,7 @@ export default function ProjectDetail() {
       // Update tasks list on successful deletion
       setTasks(tasks.filter((task: Task) => task.id !== id));
     },
-    onError: (error: TRPCClientError<any>) => {
+    onError: (error) => {
       console.error('Error deleting task:', error);
       alert(`Error deleting task: ${error.message || 'Unknown error'}`);
     },
@@ -184,7 +200,7 @@ export default function ProjectDetail() {
       // Redirect to projects list after successful deletion
       router.push('/projects');
     },
-    onError: (error: TRPCClientError<any>) => {
+    onError: (error) => {
       console.error('Error deleting project:', error);
       alert(`Error deleting project: ${error.message || 'Unknown error'}`);
     },
@@ -218,28 +234,47 @@ export default function ProjectDetail() {
     if (projectId && typeof projectId === 'string') {
       try {
         const result = await refetchProjectData();
-        if (result.data && result.data.tasks) {
+        if (result.data?.tasks) {
           // Convert the tasks data to match our Task type
-          setTasks(result.data.tasks.map((task: Task) => ({
-            ...task,
-            description: task.description || undefined,
-            due_date: task.due_date ? task.due_date.toString() : undefined,
-            created_at: task.created_at?.toString() || undefined,
-            updated_at: task.updated_at?.toString() || undefined,
-            assignee: task.assignee ? {
-              ...task.assignee,
-              name: task.assignee.name || '',
-              email: task.assignee.email || '',
-              image: task.assignee.image || undefined
-            } : undefined,
-            tags: task.tags ? task.tags.map((tag: any) => ({
-              ...tag,
-              color: tag.color || ''
-            })) : []
-          })));
+          setTasks(result.data.tasks.map((task: any) => {
+            // Ensure status is one of the valid TaskStatus values
+            const status = ['todo', 'in_progress', 'review', 'completed'].includes(task.status) 
+              ? task.status as TaskStatus 
+              : 'todo' as TaskStatus;
+              
+            // Ensure priority is one of the valid TaskPriority values
+            const priority = ['low', 'medium', 'high', 'urgent'].includes(task.priority)
+              ? task.priority as TaskPriority
+              : 'medium' as TaskPriority;
+              
+            return {
+              id: task.id,
+              title: task.title,
+              status,
+              priority,
+              description: task.description || undefined,
+              due_date: task.due_date ? task.due_date.toString() : undefined,
+              created_at: task.created_at ? task.created_at.toString() : undefined,
+              updated_at: task.updated_at ? task.updated_at.toString() : undefined,
+              assignee: task.assignee ? {
+                id: task.assignee.id,
+                name: task.assignee.name || '',
+                email: task.assignee.email || '',
+                image: task.assignee.image || undefined
+              } : undefined,
+              tags: task.tags ? task.tags.map((tag: any) => ({
+                id: tag.id,
+                name: tag.name,
+                color: tag.color || '#3B82F6'
+              })) : [],
+              project_id: task.project_id,
+              assignee_id: task.assignee_id
+            } as Task;
+          }));
         }
       } catch (error) {
         console.error('Error refreshing tasks:', error);
+        setError(error instanceof Error ? error.message : 'Failed to refresh tasks');
       }
     }
   };

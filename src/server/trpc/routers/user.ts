@@ -12,7 +12,7 @@ export const userRouter = router({
   // Get current user information
   me: protectedProcedure.query(async ({ ctx }) => {
     const userId = ctx.session.user.id;
-    
+
     try {
       const user = await ctx.db.user.findUnique({
         where: { id: userId },
@@ -54,7 +54,7 @@ export const userRouter = router({
       z.object({
         query: z.string().min(1),
         limit: z.number().min(1).max(50).optional().default(10),
-      })
+      }),
     )
     .query(async ({ ctx, input }) => {
       const { query, limit } = input;
@@ -99,7 +99,7 @@ export const userRouter = router({
       z.object({
         name: z.string().min(1).optional(),
         image: z.string().url().optional(),
-      })
+      }),
     )
     .mutation(async ({ ctx, input }) => {
       const userId = ctx.session.user.id;
@@ -215,17 +215,17 @@ export const userRouter = router({
     .mutation(async ({ ctx, input }) => {
       const userId = ctx.session.user.id;
       const { image } = input;
-      
+
       try {
         // For base64 images, we'd typically upload to a storage service
         // For this implementation, we'll just store the image URL directly
-        
+
         // In a real implementation, you would:
         // 1. Decode the base64 image
         // 2. Upload to S3 or another storage service
         // 3. Get the URL of the uploaded image
         // 4. Store that URL in the database
-        
+
         // For now, we'll assume the image is already a URL or base64 data
         const updatedUser = await ctx.db.user.update({
           where: { id: userId },

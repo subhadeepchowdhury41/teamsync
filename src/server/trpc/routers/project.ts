@@ -709,4 +709,228 @@ export const projectRouter = router({
         });
       }
     }),
+
+  // Tag management procedures
+  getTags: protectedProcedure
+    .input(z.object({ projectId: z.string() }))
+    .query(async ({ ctx, input }) => {
+      const userId = ctx.session.user.id;
+
+      try {
+        // Check if user is a member of this project
+        const userMembership = await ctx.db.projectMember.findFirst({
+          where: {
+            project_id: input.projectId,
+            user_id: userId,
+          },
+        });
+
+        if (!userMembership) {
+          throw new TRPCError({
+            code: "FORBIDDEN",
+            message: "You don't have access to this project's tags",
+          });
+        }
+
+        // Get all tags for this project
+        const tags = await ctx.db.tag.findMany({
+          where: {
+            project_id: input.projectId,
+          },
+          orderBy: {
+            name: "asc",
+          },
+        });
+
+        return tags;
+      } catch (error) {
+        if (error instanceof TRPCError) {
+          throw error;
+        }
+        console.error("Error fetching project tags:", error);
+        throw new TRPCError({
+          code: "INTERNAL_SERVER_ERROR",
+          message: "Failed to fetch project tags",
+        });
+      }
+    }),
+
+  createTag: protectedProcedure
+    .input(
+      z.object({
+        projectId: z.string(),
+        name: z.string().min(1, "Tag name is required"),
+        color: z.string().min(1, "Tag color is required"),
+      })
+    )
+    .mutation(async ({ ctx, input }) => {
+      const userId = ctx.session.user.id;
+
+      try {
+        // Check if user is a member of this project
+        const userMembership = await ctx.db.projectMember.findFirst({
+          where: {
+            project_id: input.projectId,
+            user_id: userId,
+          },
+        });
+
+        if (!userMembership) {
+          throw new TRPCError({
+            code: "FORBIDDEN",
+            message: "You don't have permission to create tags in this project",
+          });
+        }
+
+        // Create the tag
+        const tag = await ctx.db.tag.create({
+          data: {
+            name: input.name,
+            color: input.color,
+            project_id: input.projectId,
+          },
+        });
+
+        return tag;
+      } catch (error) {
+        if (error instanceof TRPCError) {
+          throw error;
+        }
+        console.error("Error creating tag:", error);
+        throw new TRPCError({
+          code: "INTERNAL_SERVER_ERROR",
+          message: "Failed to create tag",
+        });
+      }
+    }),
+
+  updateTag: protectedProcedure
+    .input(
+      z.object({
+        id: z.string(),
+        projectId: z.string(),
+        name: z.string().min(1, "Tag name is required"),
+        color: z.string().min(1, "Tag color is required"),
+      })
+    )
+    .mutation(async ({ ctx, input }) => {
+      const userId = ctx.session.user.id;
+
+      try {
+        // Check if user is a member of this project
+        const userMembership = await ctx.db.projectMember.findFirst({
+          where: {
+            project_id: input.projectId,
+            user_id: userId,
+          },
+        });
+
+        if (!userMembership) {
+          throw new TRPCError({
+            code: "FORBIDDEN",
+            message: "You don't have permission to update tags in this project",
+          });
+        }
+
+        // Check if tag exists and belongs to this project
+        const existingTag = await ctx.db.tag.findFirst({
+          where: {
+            id: input.id,
+            project_id: input.projectId,
+          },
+        });
+
+        if (!existingTag) {
+          throw new TRPCError({
+            code: "NOT_FOUND",
+            message: "Tag not found or does not belong to this project",
+          });
+        }
+
+        // Update the tag
+        const updatedTag = await ctx.db.tag.update({
+          where: {
+            id: input.id,
+          },
+          data: {
+            name: input.name,
+            color: input.color,
+          },
+        });
+
+        return updatedTag;
+      } catch (error) {
+        if (error instanceof TRPCError) {
+          throw error;
+        }
+        console.error("Error updating tag:", error);
+        throw new TRPCError({
+          code: "INTERNAL_SERVER_ERROR",
+          message: "Failed to update tag",
+        });
+      }
+    }),
+
+  deleteTag: protectedProcedure
+    .input(z.object({ id: z.string(), projectId: z.string() }))
+    .mutation(async ({ ctx, input }) => {
+      const userId = ctx.session.user.id;
+
+      try {
+        // Check if user is a member of this project
+        const userMembership = await ctx.db.projectMember.findFirst({
+          where: {
+            project_id: input.projectId,
+            user_id: userId,
+          },
+        });
+
+        if (!userMembership) {
+          throw new TRPCError({
+            code: "FORBIDDEN",
+            message: "You don't have permission to delete tags in this project",
+          });
+        }
+
+        // Check if tag exists and belongs to this project
+        const existingTag = await ctx.db.tag.findFirst({
+          where: {
+            id: input.id,
+            project_id: input.projectId,
+          },
+        });
+
+        if (!existingTag) {
+          throw new TRPCError({
+            code: "NOT_FOUND",
+            message: "Tag not found or does not belong to this project",
+          });
+        }
+
+        // Delete all task_tag associations first
+        await ctx.db.taskTag.deleteMany({
+          where: {
+            tag_id: input.id,
+          },
+        });
+
+        // Delete the tag
+        await ctx.db.tag.delete({
+          where: {
+            id: input.id,
+          },
+        });
+
+        return { success: true };
+      } catch (error) {
+        if (error instanceof TRPCError) {
+          throw error;
+        }
+        console.error("Error deleting tag:", error);
+        throw new TRPCError({
+          code: "INTERNAL_SERVER_ERROR",
+          message: "Failed to delete tag",
+        });
+      }
+    }),
 });

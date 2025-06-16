@@ -1,7 +1,7 @@
 import { NextApiRequest, NextApiResponse } from "next";
 import { getServerSession } from "next-auth/next";
 import { authOptions } from "@/server/auth";
-import { db } from "@/server/db";
+import { db } from "@/server/db-serverless";
 import { IncomingForm, File, Fields, Files } from "formidable";
 import fs from "fs";
 import path from "path";

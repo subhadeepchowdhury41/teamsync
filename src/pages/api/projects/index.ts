@@ -1,7 +1,7 @@
 import { NextApiRequest, NextApiResponse } from "next";
 import { getServerSession } from "next-auth/next";
 import { authOptions } from "@/server/auth";
-import { db } from "@/server/db";
+import { db } from "@/server/db-serverless";
 import { PrismaClient } from "@prisma/client";
 
 export default async function handler(

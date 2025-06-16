@@ -27,6 +27,7 @@ interface TaskCardProps {
     name: string;
     color: string;
   }[];
+  onDelete?: () => void;
 }
 
 export default function TaskCard({
@@ -38,6 +39,7 @@ export default function TaskCard({
   dueDate,
   assignee,
   tags = [],
+  onDelete,
 }: TaskCardProps) {
   const priorityColors = {
     low: 'bg-green-100 text-green-800',
@@ -60,12 +62,32 @@ export default function TaskCard({
     completed: 'Completed',
   };
 
+  // Handle click on delete button without navigating
+  const handleDeleteClick = (e: React.MouseEvent) => {
+    if (onDelete) {
+      e.preventDefault();
+      e.stopPropagation();
+      onDelete();
+    }
+  };
+
   return (
     <Link href={`/tasks/${id}`}>
-      <div className="rounded-lg border border-gray-200 bg-white p-4 my-2 shadow-sm hover:shadow-md transition-shadow">
+      <div className="rounded-lg border border-gray-200 bg-white p-4 my-2 shadow-sm hover:shadow-md transition-shadow relative">
         <div className="flex justify-between items-start mb-2">
           <h3 className="text-lg font-medium text-gray-900 truncate">{title}</h3>
           <div className="flex space-x-2">
+            {onDelete && (
+              <button
+                onClick={handleDeleteClick}
+                className="text-gray-400 hover:text-red-500 focus:outline-none mr-2"
+                title="Delete task"
+              >
+                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                  <path fillRule="evenodd" d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm5-1a1 1 0 00-1 1v6a1 1 0 102 0V8a1 1 0 00-1-1z" clipRule="evenodd" />
+                </svg>
+              </button>
+            )}
             <span className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium ${priorityColors[priority]}`}>
               {priority.charAt(0).toUpperCase() + priority.slice(1)}
             </span>
@@ -100,7 +122,7 @@ export default function TaskCard({
               {(() => {
                 try {
                   // Handle different types of date values
-                  let dateValue = dueDate;
+                  const dateValue = dueDate;
                   
                   // If it's an empty object, return a placeholder
                   if (typeof dueDate === 'object' && dueDate !== null && Object.keys(dueDate).length === 0) {

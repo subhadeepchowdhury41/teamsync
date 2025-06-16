@@ -2,9 +2,8 @@ import React, { useState, useEffect } from 'react';
 import { useForm } from 'react-hook-form';
 import { api } from '@/utils/api';
 import { useSession } from 'next-auth/react';
-import { type Session } from 'next-auth';
 import { type TRPCClientErrorLike } from '@trpc/client';
-import { type RouterInputs, type RouterOutputs } from '@/utils/api';
+import { type RouterOutputs } from '@/utils/api';
 import { AppRouter } from '@/server/trpc';
 
 type ProfileFormData = {
@@ -12,21 +11,9 @@ type ProfileFormData = {
   email: string;
 };
 
-type UserProfileData = {
-  id: string;
-  name: string;
-  email: string;
-  avatar_url: string | null;
-};
 
 export default function UserProfile() {
   const { data: session } = useSession();
-
-  // Check if user is authenticated
-  if (!session?.user) {
-    return null;
-  }
-
   const utils = api.useUtils();
   const userId = session?.user?.id;
 
@@ -43,6 +30,11 @@ export default function UserProfile() {
     setValue,
     formState: { errors },
   } = useForm<ProfileFormData>();
+  
+  // Check if user is authenticated
+  if (!session?.user) {
+    return null;
+  }
 
   // Profile query
   const { data: profileData, isLoading: isProfileLoading, error: profileError } = api.user.me.useQuery(
