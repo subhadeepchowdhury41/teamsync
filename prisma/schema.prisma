@@ -1,35 +1,27 @@
-// This is your Prisma schema file,
-// learn more about it in the docs: https://pris.ly/d/prisma-schema
-
 generator client {
   provider = "prisma-client-js"
 }
 
 datasource db {
   provider = "postgresql"
-  // NOTE: When using mysql or sqlserver, uncomment the @db.Text annotations in model Account below
-  // Further reading:
-  // https://next-auth.js.org/adapters/prisma#create-the-prisma-schema
-  // https://www.prisma.io/docs/reference/api-reference/prisma-schema-reference#string
   url      = env("DATABASE_URL")
 }
 
-// Necessary for Next auth
 model Account {
   id                       String  @id @default(cuid())
   userId                   String
   type                     String
   provider                 String
   providerAccountId        String
-  refresh_token            String? // @db.Text
-  access_token             String? // @db.Text
+  refresh_token            String?
+  access_token             String?
   expires_at               Int?
   token_type               String?
   scope                    String?
-  id_token                 String? // @db.Text
+  id_token                 String?
   session_state            String?
-  user                     User    @relation(fields: [userId], references: [id], onDelete: Cascade)
   refresh_token_expires_in Int?
+  user                     User    @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@unique([provider, providerAccountId])
 }
@@ -50,14 +42,14 @@ model User {
   image              String?
   hashedPassword     String?
   accounts           Account[]
-  sessions           Session[]
-  projects           Project[]       @relation("ProjectCreator")
-  tasks_created      Task[]          @relation("TaskCreator")
-  tasks_assigned     Task[]          @relation("TaskAssignee")
-  project_members    ProjectMember[]
-  notifications      Notification[]  @relation("UserNotifications")
-  sent_notifications Notification[]  @relation("NotificationSender")
   comments           Comment[]       @relation("UserComments")
+  sent_notifications Notification[]  @relation("NotificationSender")
+  notifications      Notification[]  @relation("UserNotifications")
+  projects           Project[]       @relation("ProjectCreator")
+  project_members    ProjectMember[]
+  sessions           Session[]
+  tasks_assigned     Task[]          @relation("TaskAssignee")
+  tasks_created      Task[]          @relation("TaskCreator")
 }
 
 model VerificationToken {
@@ -76,16 +68,16 @@ model Project {
   updated_at  DateTime        @updatedAt
   creator_id  String
   creator     User            @relation("ProjectCreator", fields: [creator_id], references: [id])
-  tasks       Task[]
   members     ProjectMember[]
   tags        Tag[]
+  tasks       Task[]
 }
 
 model ProjectMember {
   id         String   @id @default(uuid())
   project_id String
   user_id    String
-  role       String   @default("member") // owner, admin, member
+  role       String   @default("member")
   created_at DateTime @default(now())
   updated_at DateTime @updatedAt
   project    Project  @relation(fields: [project_id], references: [id], onDelete: Cascade)
@@ -98,19 +90,19 @@ model Task {
   id          String    @id @default(uuid())
   title       String
   description String?
-  status      String    @default("todo") // todo, in_progress, completed
-  priority    String    @default("medium") // low, medium, high
+  status      String    @default("todo")
+  priority    String    @default("medium")
   due_date    DateTime?
   created_at  DateTime  @default(now())
   updated_at  DateTime  @updatedAt
   project_id  String
   creator_id  String
   assignee_id String?
-  project     Project   @relation(fields: [project_id], references: [id], onDelete: Cascade)
-  creator     User      @relation("TaskCreator", fields: [creator_id], references: [id])
-  assignee    User?     @relation("TaskAssignee", fields: [assignee_id], references: [id])
-  task_tags   TaskTag[]
   comments    Comment[]
+  assignee    User?     @relation("TaskAssignee", fields: [assignee_id], references: [id])
+  creator     User      @relation("TaskCreator", fields: [creator_id], references: [id])
+  project     Project   @relation(fields: [project_id], references: [id], onDelete: Cascade)
+  task_tags   TaskTag[]
 }
 
 model Tag {
@@ -130,31 +122,31 @@ model TaskTag {
   task_id    String
   tag_id     String
   created_at DateTime @default(now())
-  task       Task     @relation(fields: [task_id], references: [id], onDelete: Cascade)
   tag        Tag      @relation(fields: [tag_id], references: [id], onDelete: Cascade)
+  task       Task     @relation(fields: [task_id], references: [id], onDelete: Cascade)
 
   @@id([task_id, tag_id])
 }
 
 model Notification {
-  id          String   @id @default(uuid())
-  user_id     String
-  sender_id   String?
-  type        String
-  title       String
-  message     String   @db.Text
-  read        Boolean  @default(false)
+  id             String   @id @default(uuid())
+  user_id        String
+  sender_id      String?
+  type           String
+  title          String
+  message        String
+  read           Boolean  @default(false)
   reference_type String?
   reference_id   String?
-  created_at  DateTime @default(now())
-  updated_at  DateTime @updatedAt
-  user        User     @relation("UserNotifications", fields: [user_id], references: [id], onDelete: Cascade)
-  sender      User?    @relation("NotificationSender", fields: [sender_id], references: [id], onDelete: SetNull)
+  created_at     DateTime @default(now())
+  updated_at     DateTime @updatedAt
+  sender         User?    @relation("NotificationSender", fields: [sender_id], references: [id])
+  user           User     @relation("UserNotifications", fields: [user_id], references: [id], onDelete: Cascade)
 }
 
 model Comment {
   id         String   @id @default(uuid())
-  content    String   @db.Text
+  content    String
   task_id    String
   user_id    String
   created_at DateTime @default(now())

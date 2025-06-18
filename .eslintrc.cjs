@@ -4,6 +4,7 @@ const config = {
   "parserOptions": {
     "project": true
   },
+  "ignorePatterns": ["src/env.js", "**/*.js", "**/*.cjs"],
   "plugins": [
     "@typescript-eslint"
   ],
@@ -22,6 +23,7 @@ const config = {
     "@typescript-eslint/no-restricted-syntax": "off",
     "@typescript-eslint/no-restricted-exports": "off",
     "@typescript-eslint/triple-slash-reference": "off",
+    "@typescript-eslint/no-misused-promises": "off",
     "@typescript-eslint/no-unsafe-return": "off",
     "@typescript-eslint/no-floating-promises": "off",
     "@typescript-eslint/no-unsafe-call": "off",

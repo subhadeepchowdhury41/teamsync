@@ -6,14 +6,14 @@ import { GetServerSideProps } from "next";
 import { getServerAuthSession } from "@/server/auth";
 import Layout from "@/components/layout/Layout";
 import InviteMemberModal from "@/components/projects/InviteMemberModal";
-import axios from "axios";
+import { api } from "@/utils/api";
 
 type ProjectMember = {
   id: string;
-  name: string;
-  email: string;
-  role: "owner" | "admin" | "member";
-  avatar_url?: string;
+  name: string | null;
+  email: string | null;
+  role: string;
+  avatar_url: string | null;
 };
 
 export default function ProjectTeam() {
@@ -29,76 +29,102 @@ export default function ProjectTeam() {
   const [showInviteModal, setShowInviteModal] = useState(false);
   const [refreshKey, setRefreshKey] = useState(0);
 
-  // Fetch project and members data
+  // Fetch project and members data using tRPC
+  const {
+    data: projectData,
+    isLoading: isProjectLoading,
+    error: projectError,
+    refetch: refetchProject
+  } = api.project.getById.useQuery(
+    { id: id as string },
+    { enabled: !!id && !!session }
+  );
+
+  // Fetch project members using tRPC
+  // Note: We're using getById to get the full project details including members
+  // The actual structure might vary based on your tRPC implementation
+  const {
+    data: projectDetailsData,
+    isLoading: isProjectDetailsLoading,
+    error: projectDetailsError,
+    refetch: refetchProjectDetails
+  } = api.project.getById.useQuery(
+    { id: id as string },
+    { enabled: !!id && !!session }
+  );
+
+  // Effect to process the fetched data
   useEffect(() => {
-    async function fetchProjectAndMembers() {
-      if (!id || !session) return;
+    if (!id || !session) return;
+    
+    // Set loading state based on tRPC query loading states
+    setLoading(isProjectLoading || isProjectDetailsLoading);
 
-      try {
-        setLoading(true);
-
-        // Get project details
-        const projectResponse = await axios.get(`/api/projects/${id}`);
-        const projectData = projectResponse.data;
-
-        if (!projectData) throw new Error("Project not found");
-        setProject(projectData);
-
-        // Get project members with user role information
-        const membersResponse = await axios.get(`/api/projects/${id}/members`);
-        const membersData = membersResponse.data;
-
-        console.log("Members API Response:", membersData);
-        console.log("Current user ID:", session?.user?.id);
-
-        if (!membersData || !Array.isArray(membersData)) {
-          throw new Error("Failed to load project members");
-        }
-
-        // Find current user's role in the project
-        const currentUserMember = membersData.find(
-          (member: any) => member.id === session.user.id,
-        );
-
-        console.log("Found current user member?", currentUserMember);
-        console.log(
-          "All members:",
-          membersData.map((m) => ({
-            id: m.id,
-            user_id: m.user_id,
-            role: m.role,
-          })),
-        );
-
-        // If user is not a member of this project, redirect to projects page
-        if (!currentUserMember) {
-          console.log("User not found as member, redirecting to projects page");
-          router.push("/projects");
-          return;
-        }
-
-        setUserRole(currentUserMember.role);
-
-        // The members data is already formatted correctly from the API
-        const formattedMembers = membersData;
-
-        setMembers(formattedMembers);
-      } catch (err: any) {
-        console.error("Error fetching project data:", err);
-        setError(
-          err.response?.data?.error ||
-            err.message ||
-            "Failed to load project data",
-        );
-      } finally {
-        setLoading(false);
-      }
+    // Handle project data
+    if (projectData) {
+      setProject(projectData.project);
     }
 
-    fetchProjectAndMembers();
-  }, [id, session, router, refreshKey]);
+    // Handle members data from project details
+    if (projectDetailsData?.members && Array.isArray(projectDetailsData.members)) {
+      const membersData = projectDetailsData.members;
+      console.log("Members API Response:", membersData);
+      console.log("Current user ID:", session?.user?.id);
 
-  // Handle member role change
+      // Find current user's role in the project
+      const currentUserMember = membersData.find(
+        (member) => member.id === session.user.id,
+      );
+
+      console.log("Found current user member?", currentUserMember);
+      console.log(
+        "All members:",
+        membersData.map((m) => ({
+          id: m.id,
+          name: m.name,
+          role: m.role,
+        })),
+      );
+
+      // If user is not a member of this project, redirect to projects page
+      if (!currentUserMember) {
+        console.log("User not found as member, redirecting to projects page");
+        router.push("/projects");
+        return;
+      }
+
+      setUserRole(currentUserMember.role);
+      setMembers(membersData);
+    }
+
+    // Handle errors
+    if (projectError || projectDetailsError) {
+      const error = projectError || projectDetailsError;
+      console.error("Error fetching project data:", error);
+      setError(error?.message || "Failed to load project data");
+    }
+  }, [id, session, router, projectData, projectDetailsData, isProjectLoading, isProjectDetailsLoading, projectError, projectDetailsError]);
+
+  // Refetch data when refreshKey changes
+  useEffect(() => {
+    if (refreshKey > 0) {
+      refetchProject();
+      refetchProjectDetails();
+    }
+  }, [refreshKey, refetchProject, refetchProjectDetails]);
+
+  // Handle member role change using tRPC mutation
+  const updateMemberRoleMutation = api.project.updateMemberRole.useMutation({
+    onSuccess: () => {
+      // Refresh the member list
+      setRefreshKey((prev) => prev + 1);
+    },
+    onError: (err) => {
+      console.error("Error updating member role:", err);
+      setError(err.message || "Failed to update member role");
+    },
+  });
+
   const handleRoleChange = async (memberId: string, newRole: string) => {
     try {
       // Only owners and admins can change roles
@@ -126,24 +152,29 @@ export default function ProjectTeam() {
         return;
       }
 
-      await axios.patch(
-        `/api/projects/${id}/members/${memberToUpdate.id}`,
-        {
-          role: newRole,
-        },
-      );
-
-      // Refresh the member list
-      setRefreshKey((prev) => prev + 1);
+      // Call the tRPC mutation
+      updateMemberRoleMutation.mutate({
+        projectId: id as string,
+        userId: memberToUpdate.id,
+        role: newRole as "owner" | "admin" | "member",
+      });
     } catch (err: any) {
       console.error("Error updating member role:", err);
-      setError(
-        err.response?.data?.error ||
-          err.message ||
-          "Failed to update member role",
-      );
+      setError(err.message || "Failed to update member role");
     }
   };
+
+  // Handle member removal using tRPC mutation
+  const removeMemberMutation = api.project.removeMember.useMutation({
+    onSuccess: () => {
+      // Refresh the member list
+      setRefreshKey((prev) => prev + 1);
+    },
+    onError: (err) => {
+      console.error("Error removing member:", err);
+      setError(err.message || "Failed to remove member");
+    },
+  });
 
   // Handle member removal
   const handleRemoveMember = async (memberId: string) => {
@@ -173,17 +204,14 @@ export default function ProjectTeam() {
         return;
       }
 
-      await axios.delete(
-        `/api/projects/${id}/members/${memberToRemove.id}`,
-      );
-
-      // Refresh the member list
-      setRefreshKey((prev) => prev + 1);
+      // Call the tRPC mutation
+      removeMemberMutation.mutate({
+        projectId: id as string,
+        userId: memberToRemove.id,
+      });
     } catch (err: any) {
       console.error("Error removing member:", err);
-      setError(
-        err.response?.data?.error || err.message || "Failed to remove member",
-      );
+      setError(err.message || "Failed to remove member");
     }
   };
 
@@ -274,37 +302,30 @@ export default function ProjectTeam() {
                   </p>
                 </div>
 
-                <div className="overflow-hidden bg-white shadow sm:rounded-md">
-                  <ul className="divide-y divide-gray-200">
-                    {members.map((member) => (
-                      <li key={member.id}>
-                        <div className="px-4 py-4 sm:px-6">
-                          <div className="flex items-center justify-between">
-                            <div className="flex items-center">
-                              <div className="h-10 w-10 flex-shrink-0">
-                                {member.avatar_url ? (
-                                  <img
-                                    className="h-10 w-10 rounded-full"
-                                    src={member.avatar_url}
-                                    alt={member.name}
-                                  />
-                                ) : (
-                                  <div className="flex h-10 w-10 items-center justify-center rounded-full bg-gray-200">
-                                    <span className="font-medium text-gray-500">
-                                      {member.name.charAt(0).toUpperCase()}
-                                    </span>
-                                  </div>
-                                )}
-                              </div>
-                              <div className="ml-4">
-                                <div className="text-sm font-medium text-gray-900">
-                                  {member.name}
+              <div className="overflow-hidden bg-white shadow sm:rounded-md">
+                <ul className="divide-y divide-gray-200">
+                  {members.map((member) => (
+                    <li key={member.id}>
+                      <div className="px-4 py-4 sm:px-6">
+                        <div className="flex items-center space-x-3">
+                          <div className="avatar">
+                            <div className="w-12 h-12 rounded-full">
+                              {member.avatar_url ? (
+                                <img
+                                  src={member.avatar_url}
+                                  alt={member.name || "Member"}
+                                  className="rounded-full"
+                                />
+                              ) : (
+                                <div className="bg-primary text-white rounded-full w-12 h-12 flex items-center justify-center text-xl font-semibold">
+                                  {member.name?.charAt(0).toUpperCase() || "?"}
                                 </div>
-                                <div className="text-sm text-gray-500">
-                                  {member.email}
-                                </div>
-                              </div>
+                              )}
                             </div>
+                          </div>
+                          <div>
+                            <div className="font-bold">{member.name || "Unnamed Member"}</div>
+                            <div className="text-sm opacity-50">{member.email || "No email"}</div>
                             <div className="flex items-center space-x-4">
                               {/* Role badge */}
                               <span
@@ -372,10 +393,11 @@ export default function ProjectTeam() {
                             </div>
                           </div>
                         </div>
-                      </li>
-                    ))}
-                  </ul>
-                </div>
+                      </div>
+                    </li>
+                  ))}
+                </ul>
+              </div>
               </>
             )}
           </div>

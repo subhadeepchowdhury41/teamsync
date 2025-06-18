@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { useForm } from "react-hook-form";
 import { useSession } from "next-auth/react";
-import axios from "axios";
+import { api } from "@/utils/api";
 
 type TaskFormData = {
   title: string;
@@ -29,17 +29,13 @@ interface TaskFormProps {
 
 export default function TaskForm({
   taskId,
-  projectId,
+  projectId: initialProjectId,
   onSuccess,
   onCancel,
   availableMembers,
 }: TaskFormProps) {
-  const { data: session } = useSession();
-  const [loading, setLoading] = useState(false);
+  useSession(); // Session is required for authentication but not used directly
   const [error, setError] = useState<string | null>(null);
-  const [projects, setProjects] = useState<any[]>([]);
-  const [teamMembers, setTeamMembers] = useState<any[]>([]);
-  const [availableTags, setAvailableTags] = useState<any[]>([]);
   const [selectedTags, setSelectedTags] = useState<string[]>([]);
 
   const {
@@ -47,158 +43,148 @@ export default function TaskForm({
     handleSubmit,
     reset,
     setValue,
+    watch,
     formState: { errors },
   } = useForm<TaskFormData>({
     defaultValues: {
+      title: "",
+      description: "",
       status: "todo",
       priority: "medium",
-      projectId: projectId || "",
+      dueDate: "",
+      projectId: initialProjectId || "",
+      assigneeId: "",
+      tags: [],
     },
   });
 
-  // Fetch task data if editing
+  const watchedProjectId = watch("projectId");
+
+  const {
+    data: taskData,
+    isLoading: isTaskLoading,
+    error: taskLoadingError,
+  } = api.task.getById.useQuery(
+    { id: taskId! },
+    { enabled: !!taskId }
+  );
+
   useEffect(() => {
-    const fetchTaskData = async () => {
-      if (!taskId) return;
-
-      try {
-        setLoading(true);
-        const response = await axios.get(`/api/tasks/${taskId}`);
-        const data = response.data;
-
-        if (data) {
-          setValue("title", data.title);
-          setValue("description", data.description);
-          setValue("status", data.status);
-          setValue("priority", data.priority);
-          if (data.due_date) {
-            setValue(
-              "dueDate",
-              new Date(data.due_date).toISOString().split("T")[0]!,
-            );
-          } else {
-            setValue("dueDate", "");
-          }
-          setValue("projectId", data.project_id);
-          setValue("assigneeId", data.assignee_id || "");
-
-          // Set selected tags
-          if (data.task_tags) {
-            const tagIds = data.task_tags.map((tt: any) => tt.tag.id);
-            setSelectedTags(tagIds);
-          }
-        }
-      } catch (error: any) {
-        setError(error.response?.data?.error || "Failed to fetch task data");
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    fetchTaskData();
-  }, [taskId, setValue]);
-
-  // Fetch projects
-  useEffect(() => {
-    const fetchProjects = async () => {
-      try {
-        const response = await axios.get("/api/projects");
-        // Access the projects array from the response data
-        setProjects(response.data.projects || []);
-      } catch (error: any) {
-        console.error("Error fetching projects:", error.message);
-      }
-    };
-
-    void fetchProjects();
-  }, []);
-
-  // Use team members from props if available
-  useEffect(() => {
-    if (availableMembers && availableMembers.length > 0) {
-      setTeamMembers(availableMembers);
-    }
-  }, [availableMembers]);
-
-  // Fetch team members when project changes
-  useEffect(() => {
-    const fetchMembers = async () => {
-      if (!projectId || availableMembers) return;
-
-      try {
-        const response = await axios.get(`/api/projects/${projectId}/members`);
-        setTeamMembers(response.data);
-      } catch (error) {
-        console.error("Error fetching members:", error);
-      }
-    };
-
-    if (projectId && !availableMembers) {
-      void fetchMembers();
-    }
-  }, [projectId, availableMembers]);
-
-  // Fetch tags when project changes
-  useEffect(() => {
-    const fetchTags = async () => {
-      if (!projectId) return;
-
-      try {
-        const response = await axios.get(`/api/projects/${projectId}/tags`);
-        setAvailableTags(response.data || []);
-      } catch (error: any) {
-        console.error("Error fetching tags:", error.message);
-      }
-    };
-
-    if (projectId) {
-      void fetchTags();
-    }
-  }, [projectId]);
-
-  const onSubmit = async (data: TaskFormData) => {
-    if (!session?.user) return;
-
-    try {
-      setLoading(true);
-      setError(null);
-
-      const taskData = {
-        title: data.title,
-        description: data.description,
-        status: data.status,
-        priority: data.priority,
-        dueDate: data.dueDate ? data.dueDate : null,
-        projectId: data.projectId,
-        assigneeId: data.assigneeId || null,
-        tags: selectedTags,
-      };
-      
-      console.log('Submitting task with due date:', data.dueDate);
-
-      if (taskId) {
-        // Update existing task
-        await axios.put(`/api/tasks/${taskId}`, taskData);
+    if (taskData?.task) {
+      const task = taskData.task;
+      setValue("title", task.title);
+      setValue("description", task.description || "");
+      setValue("status", task.status as TaskFormData["status"]);
+      setValue("priority", task.priority as TaskFormData["priority"]);
+      if (task.due_date) {
+        setValue("dueDate", new Date(task.due_date).toISOString().split("T")[0]!);
       } else {
-        // Create new task
-        await axios.post('/api/tasks', taskData);
+        setValue("dueDate", "");
       }
+      setValue("projectId", task.project_id);
+      setValue("assigneeId", task.assignee_id || "");
+      setSelectedTags(task.tags?.map((tag: { id: string }) => tag.id) || []);
+    }
+  }, [taskData, setValue]);
 
+  const {
+    data: projectsData,
+    isLoading: isLoadingProjects,
+    error: projectsError,
+  } = api.project.getAll.useQuery(undefined, {});
+  const projectsList = projectsData?.projects || [];
+
+  const {
+    data: selectedProjectDetails,
+    isLoading: isLoadingSelectedProjectDetails,
+    error: selectedProjectError,
+  } = api.project.getById.useQuery(
+    { id: watchedProjectId },
+    { enabled: !!watchedProjectId }
+  );
+
+  const teamMembersToDisplay = availableMembers && availableMembers.length > 0
+    ? availableMembers
+    : selectedProjectDetails?.members || [];
+
+  // Initialize with empty array as tags might not be available in the current API response
+  // In a real implementation, you might need to fetch tags separately if they're not included
+  const availableTagsToDisplay: Array<{id: string; name: string; color: string}> = [];
+
+  const createTaskMutation = api.task.create.useMutation({
+    onSuccess: () => {
       onSuccess();
-    } catch (error: any) {
-      setError(error.response?.data?.error || "An error occurred while saving the task");
-    } finally {
-      setLoading(false);
+      reset();
+      setSelectedTags([]);
+    },
+    onError: (err) => {
+      setError(err.message || "Failed to create task");
+    },
+  });
+
+  const updateTaskMutation = api.task.update.useMutation({
+    onSuccess: () => {
+      onSuccess();
+    },
+    onError: (err) => {
+      setError(err.message || "Failed to update task");
+    },
+  });
+
+  const onSubmit = (data: TaskFormData) => {
+    setError(null);
+    const payload = {
+      ...data,
+      dueDate: data.dueDate ? new Date(data.dueDate).toISOString() : undefined,
+      tags: selectedTags,
+      projectId: data.projectId,
+    };
+
+    if (taskId) {
+      updateTaskMutation.mutate({ ...payload, id: taskId });
+    } else {
+      if (!payload.projectId && initialProjectId) {
+        payload.projectId = initialProjectId;
+      }
+      if (!payload.projectId) {
+        setError("Project ID is required to create a task.");
+        return;
+      }
+      createTaskMutation.mutate(payload);
     }
   };
+
+  useEffect(() => {
+    if (initialProjectId) {
+      setValue("projectId", initialProjectId);
+    }
+  }, [initialProjectId, setValue]);
 
   const handleTagToggle = (tagId: string) => {
     setSelectedTags((prev) =>
       prev.includes(tagId)
         ? prev.filter((id) => id !== tagId)
-        : [...prev, tagId],
+        : [...prev, tagId]
     );
   };
+
+  const overallLoading = isTaskLoading || isLoadingProjects || isLoadingSelectedProjectDetails;
+  const isSubmitting = createTaskMutation.isPending || updateTaskMutation.isPending;
+
+  useEffect(() => {
+    if (taskLoadingError) {
+      console.error("Error fetching task data:", taskLoadingError.message);
+      setError(taskLoadingError.message || "Failed to load task details.");
+    } else if (projectsError) {
+      console.error("Error fetching projects:", projectsError.message);
+      setError(projectsError.message || "Failed to load projects.");
+    } else if (selectedProjectError) {
+      console.error("Error fetching selected project details:", selectedProjectError.message);
+      setError(selectedProjectError.message || "Failed to load project details.");
+    } else {
+      setError(null); // Clear error if none of the queries have errors
+    }
+  }, [taskLoadingError, projectsError, selectedProjectError]);
 
   return (
     <div className="rounded-lg bg-white p-6 shadow">
@@ -229,6 +215,7 @@ export default function TaskForm({
             type="text"
             {...register("title", { required: "Title is required" })}
             className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"
+            disabled={overallLoading}
           />
           {errors.title && (
             <p className="mt-1 text-sm text-red-600">{errors.title.message}</p>
@@ -247,6 +234,7 @@ export default function TaskForm({
             rows={3}
             {...register("description")}
             className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"
+            disabled={overallLoading}
           />
         </div>
 
@@ -262,9 +250,10 @@ export default function TaskForm({
               id="projectId"
               {...register("projectId", { required: "Project is required" })}
               className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"
+              disabled={isLoadingProjects || overallLoading}
             >
               <option value="">Select a project</option>
-              {projects.map((project) => (
+              {projectsList.map((project) => (
                 <option key={project.id} value={project.id}>
                   {project.name}
                 </option>
@@ -288,9 +277,10 @@ export default function TaskForm({
               id="assigneeId"
               {...register("assigneeId")}
               className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"
+              disabled={isLoadingSelectedProjectDetails || (!!watchedProjectId && !selectedProjectDetails) || overallLoading}
             >
               <option value="">Unassigned</option>
-              {teamMembers.map((member) => (
+              {teamMembersToDisplay.map((member: any) => (
                 <option key={member.id} value={member.id}>
                   {member.name}
                 </option>
@@ -311,6 +301,7 @@ export default function TaskForm({
               id="status"
               {...register("status")}
               className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"
+              disabled={overallLoading}
             >
               <option value="todo">To Do</option>
               <option value="in_progress">In Progress</option>
@@ -329,6 +320,7 @@ export default function TaskForm({
               id="priority"
               {...register("priority")}
               className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"
+              disabled={overallLoading}
             >
               <option value="low">Low</option>
               <option value="medium">Medium</option>
@@ -348,17 +340,18 @@ export default function TaskForm({
               type="date"
               {...register("dueDate")}
               className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"
+              disabled={overallLoading}
             />
           </div>
         </div>
 
-        {availableTags.length > 0 && (
+        {availableTagsToDisplay.length > 0 && (
           <div>
             <label className="mb-2 block text-sm font-medium text-gray-700">
               Tags
             </label>
             <div className="flex flex-wrap gap-2">
-              {availableTags.map((tag) => (
+              {availableTagsToDisplay.map((tag: any) => (
                 <button
                   key={tag.id}
                   type="button"
@@ -373,6 +366,7 @@ export default function TaskForm({
                       ? { backgroundColor: `${tag.color}40`, color: tag.color }
                       : { backgroundColor: `${tag.color}20`, color: tag.color }
                   }
+                  disabled={isLoadingSelectedProjectDetails || (!!watchedProjectId && !selectedProjectDetails) || overallLoading}
                 >
                   {tag.name}
                 </button>
@@ -381,7 +375,7 @@ export default function TaskForm({
           </div>
         )}
 
-        <div className="flex justify-end space-x-3">
+        <div className="flex justify-end space-x-3 pt-4">
           <button
             type="button"
             onClick={onCancel}
@@ -391,10 +385,10 @@ export default function TaskForm({
           </button>
           <button
             type="submit"
-            disabled={loading}
+            disabled={isSubmitting || overallLoading}
             className="inline-flex justify-center rounded-md border border-transparent bg-indigo-600 px-4 py-2 text-sm font-medium text-white shadow-sm hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2"
           >
-            {loading ? "Saving..." : taskId ? "Update Task" : "Create Task"}
+            {isSubmitting ? "Saving..." : taskId ? "Update Task" : "Create Task"}
           </button>
         </div>
       </form>

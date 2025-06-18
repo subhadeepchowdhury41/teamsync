@@ -10,10 +10,8 @@ export default function SignUpForm() {
   const [password, setPassword] = useState('');
   const [error, setError] = useState<string | null>(null);
   
-  // Use tRPC mutation hook
   const registerMutation = api.auth.register.useMutation({
     onSuccess: () => {
-      // Redirect to sign-in page after successful registration
       router.push('/auth/signin?registered=true');
     },
     onError: (error) => {

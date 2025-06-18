@@ -1,7 +1,6 @@
 import React, { useState } from 'react';
 import { useForm } from 'react-hook-form';
-import { useSession } from 'next-auth/react';
-import axios from 'axios';
+import { api } from '@/utils/api';
 
 interface InviteMemberModalProps {
   projectId: string;
@@ -15,7 +14,6 @@ type FormValues = {
 };
 
 export default function InviteMemberModal({ projectId, onClose, onSuccess }: InviteMemberModalProps) {
-  const { data: session } = useSession();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
@@ -32,18 +30,10 @@ export default function InviteMemberModal({ projectId, onClose, onSuccess }: Inv
     },
   });
 
-  const onSubmit = async (data: FormValues) => {
-    try {
-      setLoading(true);
-      setError(null);
-      
-      // Invite member using API route
-      await axios.post(`/api/projects/${projectId}/members`, {
-        email: data.email,
-        role: data.role
-      });
-      
-      setSuccess(`Successfully invited ${data.email} to the project`);
+  // Use tRPC mutation for inviting members
+  const addMemberMutation = api.project.addMember.useMutation({
+    onSuccess: () => {
+      setSuccess(`Successfully invited ${inviteEmail} to the project`);
       reset();
       
       // Notify parent component
@@ -53,18 +43,40 @@ export default function InviteMemberModal({ projectId, onClose, onSuccess }: Inv
       setTimeout(() => {
         onClose();
       }, 2000);
+    },
+    onError: (err: any) => {
+      console.error('Error inviting member:', err);
+      
+      // Handle specific error cases based on error message
+      if (err.message.includes('not found')) {
+        setError(`No user found with email ${inviteEmail}`);
+      } else if (err.message.includes('already a member')) {
+        setError('This user is already a member of this project');
+      } else {
+        setError(err.message || 'Failed to invite member');
+      }
+    }
+  });
+  
+  // Track the email being invited for success message
+  const [inviteEmail, setInviteEmail] = useState('');
+
+  const onSubmit = async (data: FormValues) => {
+    try {
+      setLoading(true);
+      setError(null);
+      setInviteEmail(data.email);
+      
+      // Invite member using tRPC mutation
+      addMemberMutation.mutate({
+        projectId,
+        email: data.email,
+        role: data.role
+      });
       
     } catch (err: any) {
       console.error('Error inviting member:', err);
-      
-      // Handle specific error cases
-      if (err.response?.status === 404) {
-        setError(`No user found with email ${data.email}`);
-      } else if (err.response?.status === 409) {
-        setError('This user is already a member of this project');
-      } else {
-        setError(err.response?.data?.error || err.message || 'Failed to invite member');
-      }
+      setError(err.message || 'Failed to invite member');
     } finally {
       setLoading(false);
     }

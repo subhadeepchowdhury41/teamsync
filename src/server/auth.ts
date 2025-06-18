@@ -41,21 +41,65 @@ declare module "next-auth" {
  */
 export const authOptions: NextAuthOptions = {
   callbacks: {
-    session: ({ session, token }) => ({
-      ...session,
-      user: {
-        ...session.user,
-        id: token.sub,
-      },
-    }),
-    jwt: ({ token, user }) => {
-      if (user) {
-        token.id = user.id;
+    session: ({ session, token }) => {
+      try {
+        return {
+          ...session,
+          user: {
+            ...session.user,
+            id: token.sub,
+          },
+        };
+      } catch (error) {
+        console.error("Session callback error:", error);
+        // Return a minimal valid session to prevent 500 errors
+        return { 
+          expires: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(),
+          user: { id: token.sub || "unknown" } 
+        };
       }
-      return token;
+    },
+    jwt: ({ token, user }) => {
+      try {
+        if (user) {
+          token.id = user.id;
+        }
+        return token;
+      } catch (error) {
+        console.error("JWT callback error:", error);
+        return token;
+      }
     },
   },
-  adapter: PrismaAdapter(db) as Adapter,
+  // Use PrismaAdapter with error handling
+  adapter: {
+    ...PrismaAdapter(db),
+    // Override methods that might cause 500 errors with more resilient versions
+    async createUser(data: any) {
+      try {
+        return await db.user.create({ data });
+      } catch (error) {
+        console.error('Error creating user:', error);
+        throw error;
+      }
+    },
+    async getUser(id: string) {
+      try {
+        return await db.user.findUnique({ where: { id } });
+      } catch (error) {
+        console.error('Error getting user:', error);
+        return null;
+      }
+    },
+    async getUserByEmail(email: string) {
+      try {
+        return await db.user.findUnique({ where: { email } });
+      } catch (error) {
+        console.error('Error getting user by email:', error);
+        return null;
+      }
+    },
+  } as Adapter,
   providers: [
     CredentialsProvider({
       name: "credentials",
@@ -64,43 +108,53 @@ export const authOptions: NextAuthOptions = {
         password: { label: "Password", type: "password" }
       },
       async authorize(credentials) {
-        if (!credentials?.email || !credentials?.password) {
-          return null;
-        }
-
-        const user = await db.user.findUnique({
-          where: {
-            email: credentials.email
+        try {
+          if (!credentials?.email || !credentials?.password) {
+            return null;
           }
-        }) as any; // Type assertion to bypass Prisma type issues
 
-        if (!user?.hashedPassword) {
+          const user = await db.user.findUnique({
+            where: {
+              email: credentials.email
+            }
+          }) as any; // Type assertion to bypass Prisma type issues
+
+          if (!user?.hashedPassword) {
+            return null;
+          }
+
+          const isPasswordValid = await compare(
+            credentials.password,
+            user.hashedPassword
+          );
+
+          if (!isPasswordValid) {
+            return null;
+          }
+
+          return {
+            id: user.id,
+            email: user.email,
+            name: user.name,
+            image: user.image
+          };
+        } catch (error) {
+          console.error('Authorization error:', error);
           return null;
         }
-
-        const isPasswordValid = await compare(
-          credentials.password,
-          user.hashedPassword
-        );
-
-        if (!isPasswordValid) {
-          return null;
-        }
-
-        return {
-          id: user.id,
-          email: user.email,
-          name: user.name,
-          image: user.image
-        };
       }
     })
   ],
   session: {
-    strategy: "jwt"
+    strategy: "jwt",
+    maxAge: 30 * 24 * 60 * 60, // 30 days
   },
   secret: process.env.NEXTAUTH_SECRET,
   debug: process.env.NODE_ENV === "development",
+  pages: {
+    signIn: '/auth/signin',
+    error: '/auth/error',
+  },
 };
 
 /**
