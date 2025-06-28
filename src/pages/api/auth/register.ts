@@ -1,5 +1,5 @@
 import { NextApiRequest, NextApiResponse } from "next";
-import { hash } from "bcrypt";
+import { hash } from "bcryptjs";
 import { db } from "@/server/db-serverless";
 import { z } from "zod";
 

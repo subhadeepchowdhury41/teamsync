@@ -5,6 +5,7 @@ import { commentRouter } from "./routers/comment";
 import { userRouter } from "./routers/user";
 import { authRouter } from "./routers/auth";
 import { taskRouter } from "./routers/task";
+import { tagRouter } from "./routers/tag";
 
 export const appRouter = router({
   project: projectRouter,
@@ -13,6 +14,7 @@ export const appRouter = router({
   user: userRouter,
   auth: authRouter,
   task: taskRouter,
+  tag: tagRouter,
 });
 
 export type AppRouter = typeof appRouter;

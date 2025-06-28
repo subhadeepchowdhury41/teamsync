@@ -25,6 +25,11 @@ interface TaskFormProps {
     email: string;
     avatar_url?: string;
   }>;
+  availableTags?: Array<{
+    id: string;
+    name: string;
+    color: string | null;
+  }>;
 }
 
 export default function TaskForm({
@@ -33,6 +38,7 @@ export default function TaskForm({
   onSuccess,
   onCancel,
   availableMembers,
+  availableTags,
 }: TaskFormProps) {
   useSession(); // Session is required for authentication but not used directly
   const [error, setError] = useState<string | null>(null);
@@ -107,9 +113,8 @@ export default function TaskForm({
     ? availableMembers
     : selectedProjectDetails?.members || [];
 
-  // Initialize with empty array as tags might not be available in the current API response
-  // In a real implementation, you might need to fetch tags separately if they're not included
-  const availableTagsToDisplay: Array<{id: string; name: string; color: string}> = [];
+  // Use the availableTags prop if provided, otherwise use an empty array
+  const availableTagsToDisplay = availableTags || [];
 
   const createTaskMutation = api.task.create.useMutation({
     onSuccess: () => {
@@ -345,7 +350,7 @@ export default function TaskForm({
           </div>
         </div>
 
-        {availableTagsToDisplay.length > 0 && (
+        {availableTagsToDisplay && availableTagsToDisplay.length > 0 && (
           <div>
             <label className="mb-2 block text-sm font-medium text-gray-700">
               Tags

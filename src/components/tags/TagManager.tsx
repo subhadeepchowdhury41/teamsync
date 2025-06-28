@@ -205,7 +205,7 @@ export default function TagManager({ projectId, onTagsChange }: TagManagerProps)
   return (
     <div className="bg-white shadow rounded-lg p-6">
       <div className="flex justify-between items-center mb-6">
-        <h2 className="text-xl font-semibold text-gray-800">Project Tags</h2>
+        <h2 className="text-lg font-semibold text-gray-800">Project Tags</h2>
         <button
           onClick={() => handleOpenModal()}
           className="px-4 py-2 bg-indigo-600 text-xs text-white rounded-md hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-indigo-500"
@@ -233,14 +233,14 @@ export default function TagManager({ projectId, onTagsChange }: TagManagerProps)
           {tags.map((tag) => (
             <div
               key={tag.id}
-              className="flex items-center justify-between p-4 bg-white rounded-lg shadow-md"
+              className="flex items-center justify-between p-2 bg-white rounded-lg shadow-md"
             >
               <div className="flex items-center">
                 <div
                   className="w-4 h-4 rounded-full mr-3"
                   style={{ backgroundColor: tag.color || "#3B82F6" }}
                 ></div>
-                <span className="text-lg font-medium">{tag.name}</span>
+                <span className="text-xs">{tag.name}</span>
               </div>
               <div className="flex items-center">
                 <button

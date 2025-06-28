@@ -20,7 +20,7 @@ interface TaskAssignee {
 interface TaskTag {
   id: string;
   name: string;
-  color: string;
+  color: string | null;
 }
 
 interface ProjectMember {
@@ -84,6 +84,7 @@ export default function ProjectDetail() {
   const [tasks, setTasks] = useState<Task[]>([]);
   const [members, setMembers] = useState<ProjectMember[]>([]);
   const [loading, setLoading] = useState(true);
+  const [projectTags, setProjectTags] = useState<TaskTag[]>([]);
   const [showTaskForm, setShowTaskForm] = useState(false);
   const [userRole, setUserRole] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -103,6 +104,21 @@ export default function ProjectDetail() {
       enabled: !!projectId && !!session?.user,
     }
   );
+
+  // Fetch project tags
+  const { data: tagsData, isLoading: tagsLoading } = api.tag.getByProject.useQuery(
+    { projectId: projectId as string },
+    {
+      enabled: !!projectId && !!session?.user,
+    }
+  );
+
+  // Update tags state when tag data is fetched
+  useEffect(() => {
+    if (tagsData) {
+      setProjectTags(tagsData.tags);
+    }
+  }, [tagsData]);
 
   // Update state when project data is fetched
   useEffect(() => {
@@ -362,6 +378,7 @@ export default function ProjectDetail() {
                     onSuccess={handleTaskFormSuccess}
                     onCancel={() => setShowTaskForm(false)}
                     availableMembers={members}
+                    availableTags={projectTags}
                   />
                 </div>
               </div>
