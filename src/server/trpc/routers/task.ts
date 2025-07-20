@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { TRPCError } from "@trpc/server";
 import { router, protectedProcedure } from "../trpc";
+import { notificationService } from "../../utils/notificationService";
 
 export const taskRouter = router({
   getAll: protectedProcedure
@@ -369,6 +370,18 @@ export const taskRouter = router({
           },
         });
         
+        // Send email notification if task has an assignee
+        if (createdTask.assignee_id && createdTask.assignee_id !== ctx.session.user.id) {
+          // Send notification asynchronously (don't await)
+          notificationService.sendTaskAssignmentNotification(createdTask.id, ctx.session.user.id)
+            .then(sent => {
+              if (sent) {
+                console.log(`Assignment notification sent for task ${createdTask.id}`);
+              }
+            })
+            .catch(err => console.error('Error sending task assignment notification:', err));
+        }
+
         // Format the task response
         const formattedTask = {
           ...createdTask,
@@ -424,6 +437,15 @@ export const taskRouter = router({
       const userId = ctx.session.user.id;
       
       try {
+        // Get the original task before update to compare changes
+        const originalTask = await ctx.db.task.findUnique({
+          where: { id: input.id },
+          select: {
+            assignee_id: true,
+            due_date: true,
+          },
+        });
+
         // First get the task to check project access
         const task = await ctx.db.task.findUnique({
           where: {
@@ -497,6 +519,12 @@ export const taskRouter = router({
                 image: true,
               },
             },
+            project: {
+              select: {
+                id: true,
+                name: true,
+              },
+            },
           },
         });
 
@@ -518,6 +546,20 @@ export const taskRouter = router({
               })),
             });
           }
+        }
+
+        // Check if assignee has changed and send notification if needed
+        if (input.assigneeId && 
+            input.assigneeId !== originalTask?.assignee_id && 
+            input.assigneeId !== ctx.session.user.id) {
+          // Send notification asynchronously (don't await)
+          notificationService.sendTaskAssignmentNotification(updatedTask.id, ctx.session.user.id)
+            .then(sent => {
+              if (sent) {
+                console.log(`Assignment notification sent for task ${updatedTask.id}`);
+              }
+            })
+            .catch(err => console.error('Error sending task assignment notification:', err));
         }
 
         // Get updated task with tags
@@ -558,6 +600,10 @@ export const taskRouter = router({
             email: updatedTask.assignee.email || '',
             avatar_url: updatedTask.assignee.image,
           } : null,
+          project: {
+            id: updatedTask.project.id,
+            name: updatedTask.project.name,
+          },
           tags: taskWithTags?.task_tags.map(tt => ({
             id: tt.tag.id,
             name: tt.tag.name,

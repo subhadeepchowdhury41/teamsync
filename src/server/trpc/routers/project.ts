@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { TRPCError } from "@trpc/server";
 import { router, protectedProcedure } from "../trpc";
+import { notificationService } from "../../utils/notificationService";
 
 // Member role validation schema
 const memberRoleSchema = z.enum(["owner", "admin", "member"]);
@@ -491,6 +492,20 @@ export const projectRouter = router({
             },
           },
         });
+
+        // Send project invitation email notification
+        notificationService.sendProjectInvitationNotification(
+          input.projectId,
+          userToAdd.id,
+          userId,
+          input.role
+        )
+          .then(sent => {
+            if (sent) {
+              console.log(`Project invitation notification sent to ${userToAdd.email}`);
+            }
+          })
+          .catch(err => console.error('Error sending project invitation notification:', err));
 
         return {
           member: {

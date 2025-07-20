@@ -2,6 +2,7 @@ import { z } from "zod";
 import { TRPCError } from "@trpc/server";
 import { router, protectedProcedure } from "../trpc";
 import { PrismaClient } from "@prisma/client";
+import { notificationService } from "../../utils/notificationService";
 
 // Type assertion to help TypeScript recognize the Comment model
 type PrismaClientWithComment = PrismaClient & {
@@ -165,6 +166,15 @@ export const commentRouter = router({
             },
           },
         });
+        
+        // Send email notification about the new comment
+        notificationService.sendNewCommentNotification(comment.id, userId)
+          .then(sent => {
+            if (sent) {
+              console.log(`New comment notification sent for comment ${comment.id}`);
+            }
+          })
+          .catch(err => console.error('Error sending new comment notification:', err));
 
         // Create notification for task assignee if it's not the commenter
         if (task.assignee_id && task.assignee_id !== userId) {
