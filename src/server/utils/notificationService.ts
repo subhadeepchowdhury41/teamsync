@@ -1,11 +1,11 @@
-import { sendEmail, emailTemplates } from './emailService';
-import { PrismaClient } from '@prisma/client';
+import { sendEmail, emailTemplates } from "./emailService";
+import { PrismaClient } from "@prisma/client";
 
 const prisma = new PrismaClient();
 
 // Base URL for the application
 const getAppBaseUrl = () => {
-  return process.env.API_URL || 'http://localhost:3000';
+  return process.env.API_URL || "http://localhost:3000";
 };
 
 // Notification service
@@ -13,7 +13,7 @@ export const notificationService = {
   // Send task assignment notification
   async sendTaskAssignmentNotification(
     taskId: string,
-    assignerId: string
+    assignerId: string,
   ): Promise<boolean> {
     try {
       // Get task details with related data
@@ -27,7 +27,9 @@ export const notificationService = {
       });
 
       if (!task || !task.assignee || !task.assignee.email) {
-        console.error('Cannot send task assignment notification: Missing task or assignee data');
+        console.error(
+          "Cannot send task assignment notification: Missing task or assignee data",
+        );
         return false;
       }
 
@@ -37,7 +39,9 @@ export const notificationService = {
       });
 
       if (!assigner) {
-        console.error('Cannot send task assignment notification: Missing assigner data');
+        console.error(
+          "Cannot send task assignment notification: Missing assigner data",
+        );
         return false;
       }
 
@@ -52,13 +56,13 @@ export const notificationService = {
           taskTitle: task.title,
           taskId: task.id,
           projectName: task.project.name,
-          assignerName: assigner.name || 'A team member',
+          assignerName: assigner.name || "A team member",
           dueDate: task.due_date?.toISOString(),
           taskUrl,
         }),
       });
     } catch (error) {
-      console.error('Error sending task assignment notification:', error);
+      console.error("Error sending task assignment notification:", error);
       return false;
     }
   },
@@ -68,7 +72,7 @@ export const notificationService = {
     projectId: string,
     userId: string,
     inviterId: string,
-    role: string
+    role: string,
   ): Promise<boolean> {
     try {
       // Get project details
@@ -87,7 +91,7 @@ export const notificationService = {
       });
 
       if (!project || !user || !user.email || !inviter) {
-        console.error('Cannot send project invitation: Missing data');
+        console.error("Cannot send project invitation: Missing data");
         return false;
       }
 
@@ -100,13 +104,13 @@ export const notificationService = {
         subject: `[TeamSync] You've been added to ${project.name}`,
         html: emailTemplates.projectInvitation({
           projectName: project.name,
-          inviterName: inviter.name || 'A team member',
+          inviterName: inviter.name || "A team member",
           role,
           projectUrl,
         }),
       });
     } catch (error) {
-      console.error('Error sending project invitation notification:', error);
+      console.error("Error sending project invitation notification:", error);
       return false;
     }
   },
@@ -124,7 +128,7 @@ export const notificationService = {
       });
 
       if (!task || !task.assignee || !task.assignee.email || !task.due_date) {
-        console.error('Cannot send due date reminder: Missing task data');
+        console.error("Cannot send due date reminder: Missing task data");
         return false;
       }
 
@@ -143,7 +147,7 @@ export const notificationService = {
         }),
       });
     } catch (error) {
-      console.error('Error sending task due reminder:', error);
+      console.error("Error sending task due reminder:", error);
       return false;
     }
   },
@@ -151,7 +155,7 @@ export const notificationService = {
   // Send new comment notification
   async sendNewCommentNotification(
     commentId: string,
-    commenterId: string
+    commenterId: string,
   ): Promise<boolean> {
     try {
       // Get comment details with related data
@@ -169,27 +173,37 @@ export const notificationService = {
       });
 
       if (!comment || !comment.task) {
-        console.error('Cannot send comment notification: Missing comment data');
+        console.error("Cannot send comment notification: Missing comment data");
         return false;
       }
+
+      console.log(comment);
 
       const task = comment.task;
       const commenter = comment.user;
 
       // Determine recipients (task creator and assignee, excluding commenter)
       const recipients = [];
-      
-      if (task.creator && task.creator.email && task.creator.id !== commenterId) {
+
+      if (
+        task.creator &&
+        task.creator.email &&
+        task.creator.id !== commenterId
+      ) {
         recipients.push(task.creator.email);
       }
-      
-      if (task.assignee && task.assignee.email && task.assignee.id !== commenterId && 
-          (!task.creator || task.creator.id !== task.assignee.id)) {
+
+      if (
+        task.assignee &&
+        task.assignee.email &&
+        task.assignee.id !== commenterId &&
+        (!task.creator || task.creator.id !== task.assignee.id)
+      ) {
         recipients.push(task.assignee.email);
       }
 
       if (recipients.length === 0) {
-        console.log('No recipients for comment notification');
+        console.log("No recipients for comment notification");
         return true; // No need to send notification
       }
 
@@ -198,24 +212,24 @@ export const notificationService = {
 
       // Send email to all recipients
       const results = await Promise.all(
-        recipients.map(recipient =>
+        recipients.map((recipient) =>
           sendEmail({
             to: recipient,
             subject: `[TeamSync] New comment on task "${task.title}"`,
             html: emailTemplates.newComment({
               taskTitle: task.title,
-              commenterName: commenter.name || 'A team member',
+              commenterName: commenter.name || "A team member",
               commentText: comment.content,
               taskUrl,
             }),
-          })
-        )
+          }),
+        ),
       );
 
       // Return true if at least one email was sent successfully
-      return results.some(result => result);
+      return results.some((result) => result);
     } catch (error) {
-      console.error('Error sending comment notification:', error);
+      console.error("Error sending comment notification:", error);
       return false;
     }
   },
@@ -226,7 +240,7 @@ export const notificationService = {
       // Get today's date (start and end)
       const today = new Date();
       today.setHours(0, 0, 0, 0);
-      
+
       const tomorrow = new Date(today);
       tomorrow.setDate(tomorrow.getDate() + 1);
 
@@ -238,7 +252,7 @@ export const notificationService = {
             lt: tomorrow,
           },
           status: {
-            not: 'completed',
+            not: "completed",
           },
         },
         include: {
@@ -259,7 +273,7 @@ export const notificationService = {
 
       return sentCount;
     } catch (error) {
-      console.error('Error sending due date reminders:', error);
+      console.error("Error sending due date reminders:", error);
       return 0;
     }
   },

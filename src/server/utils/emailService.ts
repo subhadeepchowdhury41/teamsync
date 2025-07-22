@@ -41,7 +41,7 @@ export const sendEmail = async (emailData: EmailData): Promise<boolean> => {
     const transporter = createTransporter();
     
     const mailOptions = {
-      from: emailData.from || process.env.EMAIL_FROM || 'TeamSync <no-reply@teamsync.com>',
+      from: emailData.from || process.env.EMAIL_FROM || 'TeamSync <admin@omnistacks.com>',
       to: emailData.to,
       subject: emailData.subject,
       html: emailData.html,

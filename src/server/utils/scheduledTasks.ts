@@ -41,7 +41,7 @@ export function initScheduledTasks(): void {
   // Set up daily check at a specific time (e.g., 8:00 AM)
   const runDailyAt = (hour: number, minute: number, task: () => Promise<void>) => {
     const now = new Date();
-    let scheduledTime = new Date(
+    const scheduledTime = new Date(
       now.getFullYear(),
       now.getMonth(),
       now.getDate(),
@@ -62,7 +62,7 @@ export function initScheduledTasks(): void {
       task();
       
       // Then set up a daily interval
-      setInterval(task, 24 * 60 * 60 * 1000);
+      setInterval(() => { void task(); }, 24 * 60 * 60 * 1000);
     }, timeUntilExecution);
     
     console.log(`Scheduled task to run daily at ${hour}:${minute.toString().padStart(2, '0')} AM`);

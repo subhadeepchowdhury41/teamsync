@@ -38,6 +38,7 @@ const config = {
     "@typescript-eslint/no-misused-promises": "off",
     "@typescript-eslint/no-unsafe-function-type": "off",
     "@typescript-eslint/no-misused-promises": "off",
+    "@typescript-eslint/prefer-optional-chain": "off",
     "@typescript-eslint/no-unused-vars": [
       "warn",
       {

@@ -18,6 +18,21 @@ const config = {
     defaultLocale: "en",
   },
   transpilePackages: ["geist"],
+  
+  // Handle Node.js modules for server-side code
+  webpack: (config, { isServer }) => {
+    if (!isServer) {
+      // Don't resolve 'fs', 'net', 'dns' etc. on the client side
+      config.resolve.fallback = {
+        fs: false,
+        net: false,
+        dns: false,
+        tls: false,
+        child_process: false,
+      };
+    }
+    return config;
+  },
 };
 
 export default config;
